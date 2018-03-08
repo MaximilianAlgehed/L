@@ -47,11 +47,13 @@ apply f ts = build (app (fun f) ts)
 data AState = S { nameMap       :: M.Map Name F
                 , nameTypes     :: M.Map Name (Type, [Type])
                 , variableMap   :: M.Map Name (Term F) 
-                , variableTypes :: M.Map Name Type
                 , nextVarId     :: Int
                 }
 
-type AM a = StateT AState (Except String) a
+type AM a = StateT AState (Either String) a
+
+runAM :: AM a -> Either String a
+runAM am = evalStateT am (S M.empty M.empty M.empty 0)
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
@@ -87,12 +89,11 @@ getV :: Name -> AM (Term F)
 getV n = do
   vm <- gets variableMap
   case M.lookup n vm of
-    Nothing -> throwError "Unkown variable error"
+    Nothing -> throwError $ "Unkown variable error: " ++ show n
     Just v -> return v
 
 resetV :: AM ()
 resetV = modify $ \s -> s { variableMap   = M.empty
-                          , variableTypes = M.empty
                           , nextVarId     = 0 }
 
 typeTag :: Type -> Term F -> Term F
@@ -112,16 +113,16 @@ exprToTerm e = case e of
 
   Var n -> getV n
 
-patternToTerm :: Pattern -> AM (Term F)
-patternToTerm p = case p of
+patternToTerm :: Type -> Pattern -> AM (Term F)
+patternToTerm t p = case p of
   ConstructorPattern n ps -> do
     f <- getF n
     (t, ts) <- getT n
-    -- Keep track of the type of the underlying variables
-    sequence [ introduceV v t | (VariablePattern v, t) <- zip ps ts ]
-    typeTag t . apply f <$> mapM patternToTerm ps
+    typeTag t . apply f <$> zipWithM patternToTerm ts ps
 
-  VariablePattern n -> getV n
+  VariablePattern n -> do
+    introduceV n t
+    getV n
 
 functionToEquations :: Decl -> AM [Equation F]
 functionToEquations d = case d of
@@ -132,7 +133,10 @@ functionToEquations d = case d of
              sequence [ introduceV x t | (x, t) <- zip xs ts ]
              f       <- getF f 
              xs_     <- mapM getV xs
-             pat     <- patternToTerm pat
+             typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
+               []    -> throwError $ "Unkown variable error in case: " ++ show x
+               (t:_) -> return t
+             pat     <- patternToTerm typ pat
              -- Replace the occurance of `x` with `pat` in the list of arguments
              let xs' = [ if x /= x_i then x_t else pat | (x_i, x_t) <- zip xs xs_ ]
              e       <- exprToTerm expr
@@ -140,6 +144,7 @@ functionToEquations d = case d of
         | (pat, expr) <- ps ]
   
     E e       -> do
+      -- Reset the variable context
       resetV
       (t, ts) <- getT f
       sequence [ introduceV x t | (x, t) <- zip xs ts ]
@@ -150,7 +155,6 @@ functionToEquations d = case d of
 
   _ -> throwError "Argument to functionToEquations is not a function declaration"
 
--- | Precondition: The entire program has been alpha-renamed
 axiomatise :: Program -> AM [Equation F]
 axiomatise ps = do
   -- Introduce all constructors to the context
