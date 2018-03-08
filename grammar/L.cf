@@ -7,9 +7,7 @@ separator nonempty Decl "";
 
 -- All declarations
 DData. Decl ::= "data" UIdent "=" [Constructor];
-DFun.  Decl ::= FunDecl;
-
-FD. FunDecl ::= LIdent ":" Type "\n" Ident [Ident] "=" Body;
+DFun.  Decl ::= LIdent ":" Type "\n" Ident [Ident] "=" Body;
 
 separator Ident "";
 

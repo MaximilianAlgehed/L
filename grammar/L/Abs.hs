@@ -13,10 +13,8 @@ newtype LIdent = LIdent String deriving (Eq, Ord, Show, Read)
 data Program = P [Decl]
   deriving (Eq, Ord, Show, Read)
 
-data Decl = DData UIdent [Constructor] | DFun FunDecl
-  deriving (Eq, Ord, Show, Read)
-
-data FunDecl = FD LIdent Type Ident [Ident] Body
+data Decl
+    = DData UIdent [Constructor] | DFun LIdent Type Ident [Ident] Body
   deriving (Eq, Ord, Show, Read)
 
 data Constructor = C UIdent [Type]
