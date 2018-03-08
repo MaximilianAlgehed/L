@@ -10,12 +10,14 @@ instance Show Name where
 type Program = [Decl]
 
 -- Types
-data Type = MonoType Name
-          | Fun Type Type
+data Type = MonoType { typeName :: Name } deriving (Ord, Eq)
+
+instance Show Type where
+  show = show . typeName
 
 -- All declarations
 data Decl = DataDecl    Name [(Name, [Type])] -- [(ConstructorName, [ConstructorArguments])]
-          | TypeDecl    Name Type
+          | TypeDecl    Name (Type, [Type])
           | FunDecl     Name [Name] Body
           | TheoremDecl Name Proposition
 
