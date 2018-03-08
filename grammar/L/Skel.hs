@@ -24,7 +24,7 @@ transProgram x = case x of
 transDecl :: Decl -> Result
 transDecl x = case x of
   DData uident constructors -> failure x
-  DFun lident type_ ident idents body -> failure x
+  DFun lident1 type_ lident2 idents body -> failure x
 transConstructor :: Constructor -> Result
 transConstructor x = case x of
   C uident types -> failure x

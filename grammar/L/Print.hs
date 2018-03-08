@@ -99,12 +99,12 @@ instance Print Program where
 instance Print Decl where
   prt i e = case e of
     DData uident constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, doc (showString "="), prt 0 constructors])
-    DFun lident type_ id ids body -> prPrec i 0 (concatD [prt 0 lident, doc (showString ":"), prt 0 type_, doc (showString "\n"), prt 0 id, prt 0 ids, doc (showString "="), prt 0 body])
+    DFun lident1 type_ lident2 ids body -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, prt 0 lident2, prt 0 ids, doc (showString "="), prt 0 body])
   prtList _ [x] = (concatD [prt 0 x])
   prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 instance Print Constructor where
   prt i e = case e of
-    C uident types -> prPrec i 0 (concatD [prt 0 uident, prt 0 types])
+    C uident types -> prPrec i 0 (concatD [prt 0 uident, doc (showString "("), prt 0 types, doc (showString ")")])
   prtList _ [] = (concatD [])
   prtList _ [x] = (concatD [prt 0 x])
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString "|"), prt 0 xs])

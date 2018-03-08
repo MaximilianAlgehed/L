@@ -14,7 +14,7 @@ data Program = P [Decl]
   deriving (Eq, Ord, Show, Read)
 
 data Decl
-    = DData UIdent [Constructor] | DFun LIdent Type Ident [Ident] Body
+    = DData UIdent [Constructor] | DFun LIdent Type LIdent [Ident] Body
   deriving (Eq, Ord, Show, Read)
 
 data Constructor = C UIdent [Type]

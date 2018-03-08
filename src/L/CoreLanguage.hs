@@ -22,23 +22,28 @@ data Decl = DataDecl    Name [(Name, [Type])]
           | TypeDecl    Name (Type, [Type])
           | FunDecl     Name [Name] Body
           | TheoremDecl Name Proposition
+          deriving (Ord, Eq, Show)
 
 -- Propositions
 data Proposition = Forall  Name Type Proposition
                  | Equal   Expr Expr
                  | Boolean Expr
+                 deriving (Ord, Eq, Show)
 
 -- Function bodies
 data Body = Case Name [(Pattern, Expr)]
           | E    Expr
+          deriving (Ord, Eq, Show)
 
 -- Patterns on the form "C0 x0 x1 (C1 x2 ...) ..."
 data Pattern = ConstructorPattern Name [Pattern]
              | VariablePattern    Name
+             deriving (Ord, Eq, Show)
 
 -- Expressions
 data Expr = FApp Name [Expr]
           | Var  Name
+          deriving (Ord, Eq, Show)
 
 {- Translate surface syntax to core syntax -}
 splitType :: A.Type -> (Type, [Type])
@@ -57,7 +62,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
     decl d = case d of
       A.DData (A.UIdent n) cs -> [DataDecl (Name n) (map constructor cs)]
 
-      A.DFun (A.LIdent n) t (A.Ident n') xs b ->
+      A.DFun (A.LIdent n) t (A.LIdent n') xs b ->
         [ TypeDecl (Name n) (splitType t)
         , FunDecl (Name n) [ Name x | A.Ident x <- xs ] (body b)]
 

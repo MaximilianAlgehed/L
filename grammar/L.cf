@@ -1,28 +1,29 @@
 token UIdent (upper (letter | digit | '_')*) ;
 token LIdent (lower (letter | digit | '_')*) ;
 
+comment "--";
+
 P. Program ::= [Decl];
 
 separator nonempty Decl "";
 
 -- All declarations
 DData. Decl ::= "data" UIdent "=" [Constructor];
-DFun.  Decl ::= LIdent ":" Type "\n" Ident [Ident] "=" Body;
+DFun.  Decl ::= LIdent ":" Type LIdent [Ident] "=" Body;
 
+separator Constructor "|";
 separator Ident "";
 
 -- Constructors
 C. Constructor ::= UIdent [Type];
 
-separator Constructor "|";
+separator Type "";
 
 -- Types
 MonoType. Type1 ::= Ident;
 FunType.  Type  ::= Type1 "->" Type;
 
 coercions Type 1;
-
-separator Type "";
 
 -- Function Bodies
 BCase. Body ::= "case" Ident "of" [Alt] ;

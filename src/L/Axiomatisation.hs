@@ -44,10 +44,10 @@ type F = Extended FI
 apply :: F -> [Term F] -> Term F
 apply f ts = build (app (fun f) ts)
 
-data AState = S { nameMap       :: M.Map Name F
-                , nameTypes     :: M.Map Name (Type, [Type])
-                , variableMap   :: M.Map Name (Term F) 
-                , nextVarId     :: Int
+data AState = S { nameMap     :: M.Map Name F
+                , nameTypes   :: M.Map Name (Type, [Type])
+                , variableMap :: M.Map Name (Term F) 
+                , nextVarId   :: Int
                 }
 
 type AM a = StateT AState (Either String) a
