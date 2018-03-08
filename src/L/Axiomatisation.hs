@@ -106,11 +106,6 @@ exprToTerm e = case e of
     t <- getTRes n
     typeTag t . apply f <$> mapM exprToTerm es
 
-  CApp n es -> do
-    f <- getF n
-    t <- getTRes n
-    typeTag t . apply f <$> mapM exprToTerm es
-
   Var n -> getV n
 
 patternToTerm :: Type -> Pattern -> AM (Term F)

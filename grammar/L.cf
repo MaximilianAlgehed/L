@@ -1,0 +1,51 @@
+token UIdent (upper (letter | digit | '_')*) ;
+token LIdent (lower (letter | digit | '_')*) ;
+
+P. Program ::= [Decl];
+
+separator nonempty Decl "";
+
+-- All declarations
+DData. Decl ::= "data" UIdent "=" [Constructor];
+DFun.  Decl ::= FunDecl;
+
+FD. FunDecl ::= LIdent ":" Type "\n" Ident [Ident] "=" Body;
+
+separator Ident "";
+
+-- Constructors
+C. Constructor ::= UIdent [Type];
+
+separator Constructor "|";
+
+-- Types
+MonoType. Type1 ::= Ident;
+FunType.  Type  ::= Type1 "->" Type;
+
+coercions Type 1;
+
+separator Type "";
+
+-- Function Bodies
+BCase. Body ::= "case" Ident "of" [Alt] ;
+BExpr. Body ::= Expr;
+
+separator Alt "|";
+
+A. Alt ::= Pat "->" Expr;
+
+-- Patterns
+PVar. Pat1 ::= Ident;
+PCon. Pat  ::= UIdent [Pat1];
+
+coercions Pat 1;
+
+separator Pat1 "";
+
+-- Expressions
+EVar.  Expr1 ::= Ident;
+EApp.  Expr  ::= Ident [Expr1];
+
+coercions Expr 1;
+
+separator nonempty Expr1 "";

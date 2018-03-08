@@ -16,7 +16,7 @@ instance Show Type where
   show = show . typeName
 
 -- All declarations
-data Decl = DataDecl    Name [(Name, [Type])] -- [(ConstructorName, [ConstructorArguments])]
+data Decl = DataDecl    Name [(Name, [Type])]
           | TypeDecl    Name (Type, [Type])
           | FunDecl     Name [Name] Body
           | TheoremDecl Name Proposition
@@ -36,5 +36,4 @@ data Pattern = ConstructorPattern Name [Pattern]
 
 -- Expressions
 data Expr = FApp Name [Expr]
-          | CApp Name [Expr]
           | Var  Name
