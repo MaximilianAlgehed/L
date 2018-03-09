@@ -98,8 +98,8 @@ instance Print Decl where
     DData uident constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, doc (showString "="), prt 0 constructors])
     DFun lident1 type_ lident2 lidents body -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, prt 0 lident2, prt 0 lidents, doc (showString "="), prt 0 body])
     DThm lident proposition -> prPrec i 0 (concatD [doc (showString "theorem"), prt 0 lident, prt 0 proposition])
-  prtList _ [x] = (concatD [prt 0 x, doc (showString ";")])
-  prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ";"), prt 0 xs])
+  prtList _ [x] = (concatD [prt 0 x])
+  prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 instance Print Proposition where
   prt i e = case e of
     PForall lident type_ proposition -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lident, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 proposition])

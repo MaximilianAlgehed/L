@@ -11,5 +11,8 @@ mul n m = case n of
     Z   -> Z
   | S n -> add m (mul n m);
 
---theorem add_comm
---  forall n : Nat. forall m : Nat. add n m = add m n;
+theorem add-comm
+  forall n : Nat. forall m : Nat. add n m = add m n;
+
+theorem mul-comm
+  forall n : Nat. forall m : Nat. mul n m = mul m n;
