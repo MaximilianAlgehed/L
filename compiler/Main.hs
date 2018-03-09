@@ -12,7 +12,7 @@ import L.CoreLanguage
 
 main :: IO ()
 main = do
-  [f] <- getArgs 
+  [f, problemName] <- getArgs 
   raw <- readFile f
   corePgm <- case pProgram (myLexer raw) of
     Ok p  -> return (surfaceToCore p)
@@ -21,5 +21,18 @@ main = do
     Left err -> error err
     Right as -> return as
 
-  putStrLn "== Axiomatisation =="
+
+  putStrLn "\n== Base Axiomatisation =="
   mapM_ prettyPrint ax
+
+  attacked <- case attack (Name problemName) corePgm of
+    Left err -> error err
+    Right ps -> return ps
+
+  putStrLn $ "\n== Attacking Problem \"" ++ problemName ++ "\" =="
+  sequence_ [ do unless (null (hypotheses p)) $ putStrLn "-- Induction Hypotheses --"
+                 mapM_ prettyPrint (hypotheses p)
+                 putStrLn "-- Goal --"
+                 prettyPrint (goal p)
+                 putStrLn "\n"
+            | p <- attacked ]

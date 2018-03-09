@@ -4,8 +4,9 @@ module L.Axiomatisation where
 import Control.Monad.State
 import Control.Monad.Except
 import qualified Data.Map as M
+import Data.Maybe
 
-import Twee
+import Twee hiding (goal)
 import qualified Twee.Term as T
 import Twee.Term hiding (Var, F)
 import Twee.Base hiding (Var, F)
@@ -47,6 +48,7 @@ apply f ts = build (app (fun f) ts)
 data AState = S { nameMap     :: M.Map Name F
                 , nameTypes   :: M.Map Name (Type, [Type])
                 , variableMap :: M.Map Name (Term F) 
+                , definitions :: M.Map Type [(Name, [Type])]
                 , nextVarId   :: Int
                 , theory      :: [Equation F]
                 }
@@ -54,7 +56,7 @@ data AState = S { nameMap     :: M.Map Name F
 type AM a = StateT AState (Either String) a
 
 runAM :: AM a -> Either String a
-runAM am = evalStateT am (S M.empty M.empty M.empty 0 [])
+runAM am = evalStateT am (S M.empty M.empty M.empty M.empty 0 [])
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
@@ -63,6 +65,9 @@ addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n) (nameMap s
 
 addT :: Name -> (Type, [Type]) -> AM ()
 addT n t = modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
+
+addDef :: Type -> [(Name, [Type])] -> AM ()
+addDef t d = modify $ \s -> s { definitions = M.insert t d (definitions s) }
 
 getF :: Name -> AM F
 getF n = do
@@ -73,6 +78,11 @@ getT :: Name -> AM (Type, [Type])
 getT n = do
   nt <- gets nameTypes
   maybe (throwError "Unkown type error") return (M.lookup n nt)
+
+getDef :: Type -> AM [(Name, [Type])]
+getDef t = do
+  defs <- gets definitions
+  maybe (throwError "Unkown definition error") return (M.lookup t defs)
 
 getTRes :: Name -> AM Type
 getTRes n = fst <$> getT n
@@ -85,6 +95,15 @@ introduceV n t = do
   id <- gets nextVarId 
   modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . var . V $ id) (variableMap s)
                    , nextVarId     = id + 1 } 
+
+freshVar :: Type -> AM (Term F)
+freshVar t = do
+  id <- gets nextVarId
+  modify $ \s -> s { nextVarId = id + 1}
+  return (typeTag t . build . var . V $ id)
+
+mapVarTo :: Name -> Term F -> AM ()
+mapVarTo n t = modify $ \s -> s { variableMap = M.insert n t (variableMap s) }
 
 getV :: Name -> AM (Term F)
 getV n = do
@@ -159,11 +178,13 @@ functionToEquations d = case d of
 
 axiomatise :: Program -> AM ()
 axiomatise ps = do
-  -- Introduce all constructors to the context
-  sequence_ [ do addF n (length ts)
-                 addT n (MonoType t, ts)
-            | DataDecl t cs <- ps
-            , (n, ts) <- cs]
+  -- Introduce all defintions and constructors to the context
+  sequence_ [ do
+                addDef (MonoType t) cs
+                sequence [ do addF n (length ts)
+                              addT n (MonoType t, ts)
+                         | (n, ts) <- cs ]
+            | DataDecl t cs <- ps ]
   -- Introduce all functions to the context
   sequence_ [ addF n (length ns)
             | FunDecl n ns _ <- ps ]
@@ -174,7 +195,71 @@ axiomatise ps = do
   axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ _ _) <- ps ]
   modify $ \s -> s { theory = axs }
 
-data Problem = Problem { goal :: Equation F, given :: [Equation F] }
+data Problem = Problem { goal :: Equation F
+                       , hypotheses :: [Equation F]
+                       , given :: [Equation F]
+                       }
 
-structuralInduction :: Proposition -> AM [Problem]
-structuralInduction = undefined
+type InductionSchema = Proposition -> AM [Problem]
+
+splitProposition :: Proposition -> ([(Name, Type)], (Expr, Expr))
+splitProposition p = case p of
+  Forall n t p ->
+    let (vt, lr) = splitProposition p in
+    ((n, t) : vt, lr)
+
+  Equal lhs rhs -> ([], (lhs, rhs))
+
+  Boolean _        -> error "Boolean"
+
+-- Generates an induction schema where the first variable in the proposition 
+-- to be proven is of type `t` with definition `def`
+structuralInduction :: Type -> [(Name, [Type])] -> InductionSchema
+structuralInduction t def prop = do
+  resetV
+  let (vt, (lhs, rhs)) = splitProposition prop
+  let substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
+  -- Introduce all the variables except for the one we are doing
+  -- induction over (the first one)
+  mapM (uncurry introduceV) $ drop 1 vt
+  -- Introduce the fist type variable as just a variable
+  idx <- gets nextVarId 
+  modify $ \s -> s { nextVarId     = idx + 1 } 
+  mapM (\n -> mapVarTo n (build . var $ V idx)) (fst <$> take 1 vt)
+  -- The goal
+  goal <- (:=:) <$> exprToTerm lhs <*> exprToTerm rhs
+  -- The underlying theory
+  thy <- gets theory
+  sequence
+    [ do
+        -- One skolem variable for each recursive occurance of the type `t`
+        skolems <- mapM freshSkolem [ t | t' <- ts, t == t' ]
+        -- Create I.H for each skolem variable
+        let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) goal | sk <- skolems ]
+        -- Constructor arguments for the final goal
+        arguments <- sequence [ if t == t' then return sk else freshVar t' | (t', sk) <- zip ts skolems ]
+        -- Get the constructor term
+        c <- getF cn
+        let term = typeTag t $ apply c arguments
+        return $ Problem { goal = (substEq (fromJust $ T.listToSubst [(V idx, term)]) goal), hypotheses = ihs, given = thy }
+    | (cn, ts) <- def ]
+
+-- Do structural induction on the first argument
+structInductOnFirst :: InductionSchema
+structInductOnFirst prop =
+  case splitProposition prop of
+    ([], (lhs, rhs)) -> do
+      g <- (:=:) <$> exprToTerm lhs <*> exprToTerm rhs
+      thy <- gets theory
+      return [Problem { goal = g, given = thy, hypotheses = [] }]
+    ((_, t):_, _) -> do
+      def <- getDef t
+      structuralInduction t def prop
+
+{- Function to test the induction schema generation -}
+attack :: Name -> Program -> Either String [Problem]
+attack n prg = runAM $ do
+  axiomatise prg
+  case [ structInductOnFirst p | TheoremDecl n' p <- prg, n == n' ] of
+    []    -> throwError "Can't attack a non-existent problem!"
+    (p:_) -> p
