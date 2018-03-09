@@ -78,10 +78,6 @@ instance Print Double where
   prt _ x = doc (shows x)
 
 
-instance Print Ident where
-  prt _ (Ident i) = doc (showString ( i))
-  prtList _ [] = (concatD [])
-  prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 
 instance Print UIdent where
   prt _ (UIdent i) = doc (showString ( i))
@@ -89,7 +85,8 @@ instance Print UIdent where
 
 instance Print LIdent where
   prt _ (LIdent i) = doc (showString ( i))
-
+  prtList _ [] = (concatD [])
+  prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 
 
 instance Print Program where
@@ -99,24 +96,25 @@ instance Print Program where
 instance Print Decl where
   prt i e = case e of
     DData uident constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, doc (showString "="), prt 0 constructors])
-    DFun lident1 type_ lident2 ids body -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, prt 0 lident2, prt 0 ids, doc (showString "="), prt 0 body])
+    DFun lident1 type_ lident2 lidents body -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, prt 0 lident2, prt 0 lidents, doc (showString "="), prt 0 body])
   prtList _ [x] = (concatD [prt 0 x])
   prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 instance Print Constructor where
   prt i e = case e of
-    C uident types -> prPrec i 0 (concatD [prt 0 uident, doc (showString "("), prt 0 types, doc (showString ")")])
+    C uident types -> prPrec i 0 (concatD [prt 0 uident, prt 0 types])
   prtList _ [] = (concatD [])
   prtList _ [x] = (concatD [prt 0 x])
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString "|"), prt 0 xs])
 instance Print Type where
   prt i e = case e of
-    MonoType id -> prPrec i 1 (concatD [prt 0 id])
+    MonoType uident -> prPrec i 1 (concatD [prt 0 uident])
+    TypeVar lident -> prPrec i 1 (concatD [prt 0 lident])
     FunType type_1 type_2 -> prPrec i 0 (concatD [prt 1 type_1, doc (showString "->"), prt 0 type_2])
   prtList _ [] = (concatD [])
   prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 instance Print Body where
   prt i e = case e of
-    BCase id alts -> prPrec i 0 (concatD [doc (showString "case"), prt 0 id, doc (showString "of"), prt 0 alts])
+    BCase lident alts -> prPrec i 0 (concatD [doc (showString "case"), prt 0 lident, doc (showString "of"), prt 0 alts])
     BExpr expr -> prPrec i 0 (concatD [prt 0 expr])
 
 instance Print Alt where
@@ -127,14 +125,15 @@ instance Print Alt where
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString "|"), prt 0 xs])
 instance Print Pat where
   prt i e = case e of
-    PVar id -> prPrec i 1 (concatD [prt 0 id])
+    PVar lident -> prPrec i 1 (concatD [prt 0 lident])
     PCon uident pats -> prPrec i 0 (concatD [prt 0 uident, prt 1 pats])
   prtList 1 [] = (concatD [])
   prtList 1 (x:xs) = (concatD [prt 1 x, prt 1 xs])
 instance Print Expr where
   prt i e = case e of
-    EVar id -> prPrec i 1 (concatD [prt 0 id])
-    EApp id exprs -> prPrec i 0 (concatD [prt 0 id, prt 1 exprs])
+    EVar lident -> prPrec i 1 (concatD [prt 0 lident])
+    EFApp lident exprs -> prPrec i 0 (concatD [prt 0 lident, prt 1 exprs])
+    ECApp uident exprs -> prPrec i 0 (concatD [prt 0 uident, prt 1 exprs])
   prtList 1 [x] = (concatD [prt 1 x])
   prtList 1 (x:xs) = (concatD [prt 1 x, prt 1 xs])
 

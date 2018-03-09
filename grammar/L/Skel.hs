@@ -9,9 +9,6 @@ type Result = Err String
 failure :: Show a => a -> Result
 failure x = Bad $ "Undefined case: " ++ show x
 
-transIdent :: Ident -> Result
-transIdent x = case x of
-  Ident string -> failure x
 transUIdent :: UIdent -> Result
 transUIdent x = case x of
   UIdent string -> failure x
@@ -24,27 +21,29 @@ transProgram x = case x of
 transDecl :: Decl -> Result
 transDecl x = case x of
   DData uident constructors -> failure x
-  DFun lident1 type_ lident2 idents body -> failure x
+  DFun lident1 type_ lident2 lidents body -> failure x
 transConstructor :: Constructor -> Result
 transConstructor x = case x of
   C uident types -> failure x
 transType :: Type -> Result
 transType x = case x of
-  MonoType ident -> failure x
+  MonoType uident -> failure x
+  TypeVar lident -> failure x
   FunType type_1 type_2 -> failure x
 transBody :: Body -> Result
 transBody x = case x of
-  BCase ident alts -> failure x
+  BCase lident alts -> failure x
   BExpr expr -> failure x
 transAlt :: Alt -> Result
 transAlt x = case x of
   A pat expr -> failure x
 transPat :: Pat -> Result
 transPat x = case x of
-  PVar ident -> failure x
+  PVar lident -> failure x
   PCon uident pats -> failure x
 transExpr :: Expr -> Result
 transExpr x = case x of
-  EVar ident -> failure x
-  EApp ident exprs -> failure x
+  EVar lident -> failure x
+  EFApp lident exprs -> failure x
+  ECApp uident exprs -> failure x
 

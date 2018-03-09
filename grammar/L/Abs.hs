@@ -7,31 +7,31 @@ module L.Abs where
 
 
 
-newtype Ident = Ident String deriving (Eq, Ord, Show, Read)
 newtype UIdent = UIdent String deriving (Eq, Ord, Show, Read)
 newtype LIdent = LIdent String deriving (Eq, Ord, Show, Read)
 data Program = P [Decl]
   deriving (Eq, Ord, Show, Read)
 
 data Decl
-    = DData UIdent [Constructor] | DFun LIdent Type LIdent [Ident] Body
+    = DData UIdent [Constructor]
+    | DFun LIdent Type LIdent [LIdent] Body
   deriving (Eq, Ord, Show, Read)
 
 data Constructor = C UIdent [Type]
   deriving (Eq, Ord, Show, Read)
 
-data Type = MonoType Ident | FunType Type Type
+data Type = MonoType UIdent | TypeVar LIdent | FunType Type Type
   deriving (Eq, Ord, Show, Read)
 
-data Body = BCase Ident [Alt] | BExpr Expr
+data Body = BCase LIdent [Alt] | BExpr Expr
   deriving (Eq, Ord, Show, Read)
 
 data Alt = A Pat Expr
   deriving (Eq, Ord, Show, Read)
 
-data Pat = PVar Ident | PCon UIdent [Pat]
+data Pat = PVar LIdent | PCon UIdent [Pat]
   deriving (Eq, Ord, Show, Read)
 
-data Expr = EVar Ident | EApp Ident [Expr]
+data Expr = EVar LIdent | EFApp LIdent [Expr] | ECApp UIdent [Expr]
   deriving (Eq, Ord, Show, Read)
 

@@ -11,6 +11,7 @@ main :: IO ()
 main = do
   [f] <- getArgs 
   raw <- readFile f
+  print (myLexer raw)
   pgm <- case pProgram (myLexer raw) of
     Ok p  -> return (surfaceToCore p)
     Bad e -> error e

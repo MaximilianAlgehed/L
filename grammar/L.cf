@@ -2,6 +2,7 @@ token UIdent (upper (letter | digit | '_')*) ;
 token LIdent (lower (letter | digit | '_')*) ;
 
 comment "--";
+comment "{-" "-}";
 
 P. Program ::= [Decl];
 
@@ -9,10 +10,10 @@ separator nonempty Decl "";
 
 -- All declarations
 DData. Decl ::= "data" UIdent "=" [Constructor];
-DFun.  Decl ::= LIdent ":" Type LIdent [Ident] "=" Body;
+DFun.  Decl ::= LIdent ":" Type LIdent [LIdent] "=" Body;
 
 separator Constructor "|";
-separator Ident "";
+separator LIdent "";
 
 -- Constructors
 C. Constructor ::= UIdent [Type];
@@ -20,13 +21,14 @@ C. Constructor ::= UIdent [Type];
 separator Type "";
 
 -- Types
-MonoType. Type1 ::= Ident;
+MonoType. Type1 ::= UIdent;
+TypeVar.  Type1 ::= LIdent;
 FunType.  Type  ::= Type1 "->" Type;
 
 coercions Type 1;
 
 -- Function Bodies
-BCase. Body ::= "case" Ident "of" [Alt] ;
+BCase. Body ::= "case" LIdent "of" [Alt] ;
 BExpr. Body ::= Expr;
 
 separator Alt "|";
@@ -34,7 +36,7 @@ separator Alt "|";
 A. Alt ::= Pat "->" Expr;
 
 -- Patterns
-PVar. Pat1 ::= Ident;
+PVar. Pat1 ::= LIdent;
 PCon. Pat  ::= UIdent [Pat1];
 
 coercions Pat 1;
@@ -42,8 +44,9 @@ coercions Pat 1;
 separator Pat1 "";
 
 -- Expressions
-EVar.  Expr1 ::= Ident;
-EApp.  Expr  ::= Ident [Expr1];
+EVar.  Expr1 ::= LIdent;
+EFApp. Expr  ::= LIdent [Expr1];
+ECApp. Expr  ::= UIdent [Expr1];
 
 coercions Expr 1;
 

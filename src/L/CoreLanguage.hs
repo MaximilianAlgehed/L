@@ -49,11 +49,13 @@ data Expr = FApp Name [Expr]
 splitType :: A.Type -> (Type, [Type])
 splitType = go []
   where
-    go ts (A.MonoType (A.Ident t)) = (MonoType (Name t), ts)
+    go ts (A.MonoType (A.UIdent t)) = (MonoType (Name t), ts)
+    go ts (A.TypeVar (A.LIdent t)) = error "type variable"
     go ts (A.FunType t0 t1)        = go (monoType t0 : ts) t1
 
 monoType :: A.Type -> Type
-monoType (A.MonoType (A.Ident t)) = MonoType (Name t)
+monoType (A.MonoType (A.UIdent t)) = MonoType (Name t)
+monoType _ = error "Not a mono type"
 
 surfaceToCore :: A.Program -> Program
 surfaceToCore (A.P ds) = concatMap decl ds
@@ -64,25 +66,26 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
       A.DFun (A.LIdent n) t (A.LIdent n') xs b ->
         [ TypeDecl (Name n) (splitType t)
-        , FunDecl (Name n) [ Name x | A.Ident x <- xs ] (body b)]
+        , FunDecl (Name n) [ Name x | A.LIdent x <- xs ] (body b)]
 
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map monoType ts)
 
     body :: A.Body -> Body
     body b = case b of 
-      A.BCase (A.Ident x) as -> Case (Name x) (map alternative as)
-      A.BExpr e              -> E (expr e)
+      A.BCase (A.LIdent x) as -> Case (Name x) (map alternative as)
+      A.BExpr e               -> E (expr e)
 
     alternative :: A.Alt -> (Pattern, Expr)
     alternative (A.A p e) = (pattern p, expr e)
 
     pattern :: A.Pat -> Pattern
     pattern p = case p of
-      A.PVar (A.Ident n)     -> VariablePattern (Name n)
+      A.PVar (A.LIdent n)    -> VariablePattern (Name n)
       A.PCon (A.UIdent n) ps -> ConstructorPattern (Name n) (map pattern ps)
 
     expr :: A.Expr -> Expr
     expr e = case e of
-      A.EVar (A.Ident x)    -> Var (Name x)
-      A.EApp (A.Ident f) es -> FApp (Name f) (map expr es)
+      A.EVar (A.LIdent x)    -> Var (Name x)
+      A.EFApp (A.LIdent f) es -> FApp (Name f) (map expr es)
+      A.ECApp (A.UIdent f) es -> FApp (Name f) (map expr es)
