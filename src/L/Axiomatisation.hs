@@ -48,12 +48,13 @@ data AState = S { nameMap     :: M.Map Name F
                 , nameTypes   :: M.Map Name (Type, [Type])
                 , variableMap :: M.Map Name (Term F) 
                 , nextVarId   :: Int
+                , theory      :: [Equation F]
                 }
 
 type AM a = StateT AState (Either String) a
 
 runAM :: AM a -> Either String a
-runAM am = evalStateT am (S M.empty M.empty M.empty 0)
+runAM am = evalStateT am (S M.empty M.empty M.empty 0 [])
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
@@ -82,7 +83,7 @@ getTArg n = snd <$> getT n
 introduceV :: Name -> Type -> AM ()
 introduceV n t = do
   id <- gets nextVarId 
-  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . var $ V id) (variableMap s)
+  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . var . V $ id) (variableMap s)
                    , nextVarId     = id + 1 } 
 
 getV :: Name -> AM (Term F)
@@ -95,6 +96,12 @@ getV n = do
 resetV :: AM ()
 resetV = modify $ \s -> s { variableMap   = M.empty
                           , nextVarId     = 0 }
+
+freshSkolem :: Type -> AM (Term F)
+freshSkolem t = do
+  idx <- gets nextVarId
+  modify $ \s -> s { nextVarId = idx + 1 }
+  return . typeTag t . build . con . skolem . V $ idx
 
 typeTag :: Type -> Term F -> Term F
 typeTag t tm = apply (Function (T 1 t)) [tm]
@@ -150,8 +157,8 @@ functionToEquations d = case d of
 
   _ -> throwError "Argument to functionToEquations is not a function declaration"
 
-axiomatise :: Program -> Either String [Equation F]
-axiomatise ps = runAM $ do
+axiomatise :: Program -> AM ()
+axiomatise ps = do
   -- Introduce all constructors to the context
   sequence_ [ do addF n (length ts)
                  addT n (MonoType t, ts)
@@ -164,4 +171,10 @@ axiomatise ps = runAM $ do
   sequence_ [ addT n t
             | TypeDecl n t <- ps ] 
   -- Compute axiomatisation from the functions
-  concat <$> mapM functionToEquations [ f | f@(FunDecl _ _ _) <- ps ]
+  axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ _ _) <- ps ]
+  modify $ \s -> s { theory = axs }
+
+data Problem = Problem { goal :: Equation F, given :: [Equation F] }
+
+structuralInduction :: Proposition -> AM [Problem]
+structuralInduction = undefined
