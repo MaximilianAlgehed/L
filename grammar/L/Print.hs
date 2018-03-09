@@ -97,8 +97,15 @@ instance Print Decl where
   prt i e = case e of
     DData uident constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, doc (showString "="), prt 0 constructors])
     DFun lident1 type_ lident2 lidents body -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, prt 0 lident2, prt 0 lidents, doc (showString "="), prt 0 body])
-  prtList _ [x] = (concatD [prt 0 x])
-  prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
+    DThm lident proposition -> prPrec i 0 (concatD [doc (showString "theorem"), prt 0 lident, prt 0 proposition])
+  prtList _ [x] = (concatD [prt 0 x, doc (showString ";")])
+  prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ";"), prt 0 xs])
+instance Print Proposition where
+  prt i e = case e of
+    PForall lident type_ proposition -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lident, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 proposition])
+    PEqual expr1 expr2 -> prPrec i 0 (concatD [prt 0 expr1, doc (showString "="), prt 0 expr2])
+    PExpr expr -> prPrec i 0 (concatD [prt 0 expr])
+
 instance Print Constructor where
   prt i e = case e of
     C uident types -> prPrec i 0 (concatD [prt 0 uident, prt 0 types])
@@ -108,7 +115,6 @@ instance Print Constructor where
 instance Print Type where
   prt i e = case e of
     MonoType uident -> prPrec i 1 (concatD [prt 0 uident])
-    TypeVar lident -> prPrec i 1 (concatD [prt 0 lident])
     FunType type_1 type_2 -> prPrec i 0 (concatD [prt 1 type_1, doc (showString "->"), prt 0 type_2])
   prtList _ [] = (concatD [])
   prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
@@ -132,6 +138,7 @@ instance Print Pat where
 instance Print Expr where
   prt i e = case e of
     EVar lident -> prPrec i 1 (concatD [prt 0 lident])
+    ECon uident -> prPrec i 1 (concatD [prt 0 uident])
     EFApp lident exprs -> prPrec i 0 (concatD [prt 0 lident, prt 1 exprs])
     ECApp uident exprs -> prPrec i 0 (concatD [prt 0 uident, prt 1 exprs])
   prtList 1 [x] = (concatD [prt 1 x])

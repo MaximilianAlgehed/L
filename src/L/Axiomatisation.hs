@@ -28,7 +28,7 @@ instance Arity FI where
   arity = arityF
 
 instance Pretty FI where
-  pPrint f@(F _ _)= text . show . nameF $ f
+  pPrint f@(F _ _)= text . ("'" ++) . show . nameF $ f
   pPrint t@(T _ _)= text . ("tt" ++ ) . show . typ   $ t
 
 instance EqualsBonus FI where
@@ -66,7 +66,7 @@ addT n t = modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
 getF :: Name -> AM F
 getF n = do
   nm <- gets nameMap
-  maybe (throwError "Unkown constructor error") return (M.lookup n nm)
+  maybe (throwError "Unkown function symbol error") return (M.lookup n nm)
 
 getT :: Name -> AM (Type, [Type])
 getT n = do
@@ -150,8 +150,8 @@ functionToEquations d = case d of
 
   _ -> throwError "Argument to functionToEquations is not a function declaration"
 
-axiomatise :: Program -> AM [Equation F]
-axiomatise ps = do
+axiomatise :: Program -> Either String [Equation F]
+axiomatise ps = runAM $ do
   -- Introduce all constructors to the context
   sequence_ [ do addF n (length ts)
                  addT n (MonoType t, ts)

@@ -50,7 +50,7 @@ splitType :: A.Type -> (Type, [Type])
 splitType = go []
   where
     go ts (A.MonoType (A.UIdent t)) = (MonoType (Name t), ts)
-    go ts (A.TypeVar (A.LIdent t)) = error "type variable"
+    --go ts (A.TypeVar (A.LIdent t)) = error "type variable"
     go ts (A.FunType t0 t1)        = go (monoType t0 : ts) t1
 
 monoType :: A.Type -> Type
@@ -67,6 +67,14 @@ surfaceToCore (A.P ds) = concatMap decl ds
       A.DFun (A.LIdent n) t (A.LIdent n') xs b ->
         [ TypeDecl (Name n) (splitType t)
         , FunDecl (Name n) [ Name x | A.LIdent x <- xs ] (body b)]
+
+      A.DThm (A.LIdent n) p -> [TheoremDecl (Name n) (proposition p)]
+
+    proposition :: A.Proposition -> Proposition
+    proposition p = case p of
+      A.PForall (A.LIdent n) t p -> Forall (Name n) (monoType t) (proposition p)
+      A.PEqual el er             -> Equal (expr el) (expr er)
+      A.PExpr e                  -> Boolean (expr e)
 
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map monoType ts)
@@ -86,6 +94,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     expr :: A.Expr -> Expr
     expr e = case e of
-      A.EVar (A.LIdent x)    -> Var (Name x)
+      A.EVar (A.LIdent x)     -> Var (Name x)
+      A.ECon (A.UIdent c)     -> FApp (Name c) []
       A.EFApp (A.LIdent f) es -> FApp (Name f) (map expr es)
       A.ECApp (A.UIdent f) es -> FApp (Name f) (map expr es)

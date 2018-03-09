@@ -2,6 +2,8 @@ module Main where
 
 import System.Environment
 
+import Twee.Pretty
+
 import L.ErrM
 import L.Par
 import L.Axiomatisation
@@ -11,8 +13,12 @@ main :: IO ()
 main = do
   [f] <- getArgs 
   raw <- readFile f
-  print (myLexer raw)
-  pgm <- case pProgram (myLexer raw) of
+  corePgm <- case pProgram (myLexer raw) of
     Ok p  -> return (surfaceToCore p)
     Bad e -> error e
-  print pgm
+  ax <- case axiomatise corePgm of
+    Left err -> error err
+    Right as -> return as
+
+  putStrLn "== Axiomatisation =="
+  mapM_ prettyPrint ax

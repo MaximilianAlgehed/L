@@ -6,14 +6,20 @@ comment "{-" "-}";
 
 P. Program ::= [Decl];
 
-separator nonempty Decl "";
+terminator nonempty Decl ";";
 
 -- All declarations
 DData. Decl ::= "data" UIdent "=" [Constructor];
 DFun.  Decl ::= LIdent ":" Type LIdent [LIdent] "=" Body;
+DThm.  Decl ::= "theorem" LIdent Proposition;
 
 separator Constructor "|";
 separator LIdent "";
+
+-- Propositions
+PForall. Proposition ::= "forall" LIdent ":" Type "." Proposition;
+PEqual.  Proposition ::= Expr "=" Expr;
+PExpr.   Proposition ::= Expr;
 
 -- Constructors
 C. Constructor ::= UIdent [Type];
@@ -22,7 +28,7 @@ separator Type "";
 
 -- Types
 MonoType. Type1 ::= UIdent;
-TypeVar.  Type1 ::= LIdent;
+--TypeVar.  Type1 ::= LIdent;
 FunType.  Type  ::= Type1 "->" Type;
 
 coercions Type 1;
@@ -36,8 +42,8 @@ separator Alt "|";
 A. Alt ::= Pat "->" Expr;
 
 -- Patterns
-PVar. Pat1 ::= LIdent;
-PCon. Pat  ::= UIdent [Pat1];
+PVar.  Pat1 ::= LIdent;
+PCon.  Pat  ::= UIdent [Pat1];
 
 coercions Pat 1;
 
@@ -45,6 +51,7 @@ separator Pat1 "";
 
 -- Expressions
 EVar.  Expr1 ::= LIdent;
+ECon.  Expr1 ::= UIdent;
 EFApp. Expr  ::= LIdent [Expr1];
 ECApp. Expr  ::= UIdent [Expr1];
 

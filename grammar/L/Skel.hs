@@ -22,13 +22,18 @@ transDecl :: Decl -> Result
 transDecl x = case x of
   DData uident constructors -> failure x
   DFun lident1 type_ lident2 lidents body -> failure x
+  DThm lident proposition -> failure x
+transProposition :: Proposition -> Result
+transProposition x = case x of
+  PForall lident type_ proposition -> failure x
+  PEqual expr1 expr2 -> failure x
+  PExpr expr -> failure x
 transConstructor :: Constructor -> Result
 transConstructor x = case x of
   C uident types -> failure x
 transType :: Type -> Result
 transType x = case x of
   MonoType uident -> failure x
-  TypeVar lident -> failure x
   FunType type_1 type_2 -> failure x
 transBody :: Body -> Result
 transBody x = case x of
@@ -44,6 +49,7 @@ transPat x = case x of
 transExpr :: Expr -> Result
 transExpr x = case x of
   EVar lident -> failure x
+  ECon uident -> failure x
   EFApp lident exprs -> failure x
   ECApp uident exprs -> failure x
 
