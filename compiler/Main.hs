@@ -3,6 +3,9 @@ module Main where
 import System.Environment
 import Control.Monad.State
 
+import Twee.Proof (Axiom(..))
+import Twee hiding (goal)
+import qualified Twee as T
 import Twee.Pretty
 
 import L.ErrM
@@ -34,5 +37,14 @@ main = do
                  mapM_ prettyPrint (hypotheses p)
                  putStrLn "-- Goal --"
                  prettyPrint (goal p)
+                 let axioms = [ Axiom i ("ax" ++ show i) ax | (ax, i) <- zip (hypotheses p ++ given p) [0..] ]
+                 let g = T.goal 0 "the goal" (goal p)
+                 let st = addGoal defaultConfig (foldr (\a s -> addAxiom defaultConfig s a) initialState axioms) g
+                 st' <- complete (Output (\_ -> return ())) defaultConfig st
+                 putStrLn "\n"
+                 if solved st then
+                   putStrLn "Twee solved it!"
+                 else
+                   putStrLn "Twee didn't solve it"
                  putStrLn "\n"
             | p <- attacked ]
