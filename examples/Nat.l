@@ -15,6 +15,9 @@ lemma add-S
 lemma add-move-S
   forall n : Nat. forall m : Nat. add (S n) m = add n (S m);
 
+-- Twee doesn't think the step case is proven
+-- even when the rules and equalities produced
+-- do prove it, weird!
 theorem add-comm
   forall n : Nat. forall m : Nat. add n m = add m n
 using
@@ -46,6 +49,8 @@ theorem mul-comm
   forall n : Nat. forall m : Nat.
     mul n m = mul m n;
 
+-- Twee diverges when trying to prove the step
+-- case here. Don't know why :(
 theorem mul-assoc
   forall a : Nat. forall b : Nat. forall c : Nat.
     mul a (mul b c) = mul (mul a b) c;

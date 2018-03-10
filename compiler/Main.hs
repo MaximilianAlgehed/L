@@ -26,14 +26,11 @@ main = do
     Left err -> error err
     Right as -> return as
 
-  putStrLn "\n== Base Axiomatisation =="
-  mapM_ prettyPrint ax
-
   attacked <- case attack (Name problemName) corePgm of
     Left err -> error err
     Right ps -> return ps
 
-  putStrLn $ "\n== Attacking Problem \"" ++ problemName ++ "\" ==\n"
+  putStrLn $ "\n== Trying to prove \"" ++ problemName ++ "\" ==\n"
   sequence_ [ do putStrLn "-- Base Theory --"
                  mapM_ prettyPrint (given p)
                  unless (null (lemmas p)) $ putStrLn "-- Lemmas --"
