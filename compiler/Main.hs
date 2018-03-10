@@ -4,6 +4,8 @@ module Main where
 import System.Environment
 import Control.Monad.State
 
+import Twee.Base hiding (subst)
+import Twee.Term
 import Twee.Equation
 import Twee.Proof (Axiom(..))
 import Twee.Rule (Resulting(..))
@@ -48,7 +50,9 @@ main = do
                  prettyPrint (goal p)
                  let axioms = [ Axiom i ("ax" ++ show i) ax
                               | (ax, i) <- zip (hypotheses p ++ given p ++ lemmas p) [0..] ]
-                 let g = T.goal 0 "the goal" (goal p)
+                 let lhs :=: rhs = goal p
+                 let skGoal = build (subst (con . skolem) lhs) :=: build (subst (con . skolem) rhs)
+                 let g = T.goal 0 "the goal" skGoal
                  let st = addGoal cfg (foldr (\a s -> addAxiom cfg s a) initialState axioms) g
                  completedState <- normaliseGoals <$> complete (Output $ \_ -> return ()) cfg st
                  putStrLn "\n"

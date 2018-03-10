@@ -17,6 +17,7 @@ library
   hs-source-dirs:      src, grammar
   exposed-modules:     L.CoreLanguage
                      , L.Axiomatisation
+                     , L.TypeCheck
                      , L.Abs
                      , L.ErrM
                      , L.Lex

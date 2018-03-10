@@ -15,9 +15,6 @@ lemma add-S
 lemma add-move-S
   forall n : Nat. forall m : Nat. add (S n) m = add n (S m);
 
--- Twee doesn't think the step case is proven
--- even when the rules and equalities produced
--- do prove it, weird!
 theorem add-comm
   forall n : Nat. forall m : Nat. add n m = add m n
 using
