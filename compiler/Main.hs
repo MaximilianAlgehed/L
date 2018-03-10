@@ -1,5 +1,6 @@
 module Main where
 
+-- Constructors
 import System.Environment
 import Control.Monad.State
 
@@ -20,10 +21,13 @@ main = do
   corePgm <- case pProgram (myLexer raw) of
     Ok p  -> return (surfaceToCore p)
     Bad e -> error e
+
+  putStrLn "\n== Core Abtract Syntax =="
+  print corePgm
+
   ax <- case runAM $ axiomatise corePgm >> gets theory of
     Left err -> error err
     Right as -> return as
-
 
   putStrLn "\n== Base Axiomatisation =="
   mapM_ prettyPrint ax

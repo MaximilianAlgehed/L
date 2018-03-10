@@ -15,7 +15,14 @@ data Program = P [Decl]
 data Decl
     = DData UIdent [Constructor]
     | DFun LIdent Type LIdent [LIdent] Body
-    | DThm LIdent Proposition
+    | DThm Thm
+  deriving (Eq, Ord, Show, Read)
+
+data Thm
+    = TStandalone LIdent Proposition
+    | TUsing LIdent Proposition [LIdent]
+    | TLemma LIdent Proposition
+    | TLemmaUsing LIdent Proposition [LIdent]
   deriving (Eq, Ord, Show, Read)
 
 data Proposition

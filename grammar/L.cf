@@ -11,7 +11,12 @@ terminator nonempty Decl ";";
 -- All declarations
 DData. Decl ::= "data" UIdent "=" [Constructor];
 DFun.  Decl ::= LIdent ":" Type LIdent [LIdent] "=" Body;
-DThm.  Decl ::= "theorem" LIdent Proposition;
+DThm.  Decl ::= Thm;
+
+TStandalone. Thm ::= "theorem" LIdent Proposition;
+TUsing.      Thm ::= "theorem" LIdent Proposition "using" [LIdent];
+TLemma.      Thm ::= "lemma" LIdent Proposition;
+TLemmaUsing. Thm ::= "lemma" LIdent Proposition "using" [LIdent];
 
 separator Constructor "|";
 separator LIdent "";

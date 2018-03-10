@@ -21,7 +21,7 @@ instance Show Type where
 data Decl = DataDecl    Name [(Name, [Type])]
           | TypeDecl    Name (Type, [Type])
           | FunDecl     Name [Name] Body
-          | TheoremDecl Name Proposition
+          | TheoremDecl Name Proposition [Name]
           deriving (Ord, Eq, Show)
 
 -- Propositions
@@ -68,7 +68,15 @@ surfaceToCore (A.P ds) = concatMap decl ds
         [ TypeDecl (Name n) (splitType t)
         , FunDecl (Name n) [ Name x | A.LIdent x <- xs ] (body b)]
 
-      A.DThm (A.LIdent n) p -> [TheoremDecl (Name n) (proposition p)]
+      A.DThm t -> [theorem t]
+
+    theorem :: A.Thm -> Decl
+    theorem t = case t of
+      A.TStandalone (A.LIdent n) p     -> TheoremDecl (Name n) (proposition p) []
+      A.TUsing (A.LIdent n) p ids      -> TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
+      A.TLemma (A.LIdent n) p          -> TheoremDecl (Name n) (proposition p) []
+      A.TLemmaUsing (A.LIdent n) p ids -> TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
+
 
     proposition :: A.Proposition -> Proposition
     proposition p = case p of

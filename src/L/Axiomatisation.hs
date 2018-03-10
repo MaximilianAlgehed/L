@@ -180,7 +180,9 @@ axiomatise :: Program -> AM ()
 axiomatise ps = do
   -- Introduce all defintions and constructors to the context
   sequence_ [ do
+                -- Definitions
                 addDef (MonoType t) cs
+                -- Constructors
                 sequence [ do addF n (length ts)
                               addT n (MonoType t, ts)
                          | (n, ts) <- cs ]
@@ -260,6 +262,6 @@ structInductOnFirst prop =
 attack :: Name -> Program -> Either String [Problem]
 attack n prg = runAM $ do
   axiomatise prg
-  case [ structInductOnFirst p | TheoremDecl n' p <- prg, n == n' ] of
+  case [ p | TheoremDecl n' p extras <- prg, n == n' ] of
     []    -> throwError "Can't attack a non-existent problem!"
-    (p:_) -> p
+    (p:_) -> structInductOnFirst p

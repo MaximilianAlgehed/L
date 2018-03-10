@@ -22,7 +22,13 @@ transDecl :: Decl -> Result
 transDecl x = case x of
   DData uident constructors -> failure x
   DFun lident1 type_ lident2 lidents body -> failure x
-  DThm lident proposition -> failure x
+  DThm thm -> failure x
+transThm :: Thm -> Result
+transThm x = case x of
+  TStandalone lident proposition -> failure x
+  TUsing lident proposition lidents -> failure x
+  TLemma lident proposition -> failure x
+  TLemmaUsing lident proposition lidents -> failure x
 transProposition :: Proposition -> Result
 transProposition x = case x of
   PForall lident type_ proposition -> failure x
