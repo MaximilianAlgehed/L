@@ -21,14 +21,11 @@ lookup f v = do
 typeError :: TC a
 typeError = fail "Type error"
 
-typeCheck :: Program -> Bool
-typeCheck = error "Type checking not yet implemented"
+class TypeCheckable a where
+  typeCheck :: Type -> a -> TC ()
 
-class Checkable a where
-  check :: Type -> a -> TC ()
-
-instance Checkable Expr where
-  check t e = case e of
+instance TypeCheckable Expr where
+  typeCheck t e = case e of
     EVar v     -> do
       vt <- lookup variableTypes v
       unless (t == vt) typeError
@@ -40,9 +37,9 @@ instance Checkable Expr where
       (rt, argst) <- lookup functionTypes f
       unless (rt == t) typeError
       unless (length es == length argst) typeError
-      zipWithM_ check argst es
+      zipWithM_ typeCheck argst es
     ECApp c es -> do
       (rt, argst) <- lookup constructorTypes c
       unless (rt == t) typeError
       unless (length es == length argst) typeError
-      zipWithM_ check argst es
+      zipWithM_ typeCheck argst es
