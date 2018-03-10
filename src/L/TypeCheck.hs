@@ -112,7 +112,9 @@ instance TypeCheckable Proposition where
       p <- T.PForall vs t <$> typeCheck Nothing p
       pop
       return p
+
     PEqual l r -> T.PEqual <$> (snd <$> typeCheck Nothing l) <*> (snd <$> typeCheck Nothing r)
+
     PExpr e -> T.PExpr . snd <$> typeCheck Nothing e
 
 -- Binds variables in the current context
