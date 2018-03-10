@@ -47,5 +47,5 @@ normalise (P pgm) = P . concat . runNorm . mapM normaliseDecl $ pgm
 
 normaliseDecl :: Decl -> NM [Decl]
 normaliseDecl d = case d of
-  DFun f t _ xs body -> error "Normalisation is undefined"
+  DFun f t xs body -> error "Normalisation is undefined"
   d -> return [d]

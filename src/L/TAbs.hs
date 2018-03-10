@@ -1,14 +1,14 @@
 
 module L.TAbs where
 
-import L.Abs (Type, LIdent, UIdent)
+import L.Abs (Type, LIdent, UIdent, Constructor)
 
 data Program = P [Decl]
   deriving (Eq, Ord, Show, Read)
 
 data Decl
     = DData UIdent [Constructor]
-    | DFun LIdent Type LIdent [LIdent] Expr
+    | DFun LIdent Type [LIdent] Expr
     | DThm Thm
   deriving (Eq, Ord, Show, Read)
 
@@ -21,9 +21,6 @@ data Thm
 
 data Proposition
     = PForall [LIdent] Type Proposition | PEqual Expr Expr | PExpr Expr
-  deriving (Eq, Ord, Show, Read)
-
-data Constructor = C UIdent [Type]
   deriving (Eq, Ord, Show, Read)
 
 data Expr

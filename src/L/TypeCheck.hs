@@ -15,6 +15,20 @@ data TCState = TCS { constructorTypes :: M.Map UIdent (Type, [Type])
 
 type TC a = StateT TCState (Either String) a
 
+introduceC :: UIdent -> (Type, [Type]) -> TC ()
+introduceC c t = do
+  m <- gets constructorTypes
+  case M.lookup c m of
+    Nothing -> modify $ \s -> s { constructorTypes = M.insert c t m }
+    Just _  -> typeError
+
+introduceF :: LIdent -> (Type, [Type]) -> TC ()
+introduceF f t = do
+  m <- gets functionTypes
+  case M.lookup f m of
+    Nothing -> modify $ \s -> s { functionTypes = M.insert f t m }
+    Just _  -> typeError
+
 lookup :: Ord a => (TCState -> M.Map a t) -> a -> TC t
 lookup f v = do
   ctx <- gets f
@@ -45,9 +59,51 @@ introduce v t = do
 typeError :: TC a
 typeError = fail "Type error"
 
+split :: Type -> (Type, [Type])
+split (MonoType ui) = (MonoType ui, [])
+split (FunType a r) =
+  let (res, as) = split r in (res, a : as)
+
 class TypeCheckable a where
   type Checked a :: *
   typeCheck :: Maybe Type -> a -> TC (Checked a)
+
+instance TypeCheckable Decl where
+  type Checked Decl = T.Decl
+  typeCheck Nothing d = case d of
+    DData n cs -> do
+      sequence_ [ introduceC c (MonoType n, ts) | C c ts <- cs ]
+      return $ T.DData n cs
+
+    DFun f t f' xs e -> do
+      unless (f == f') typeError
+      unless (length xs <= (length . snd . split $ t)) typeError
+      introduceF f (split t)
+      push
+      zipWithM_ introduce xs (snd (split t))
+      (t', e') <- typeCheck Nothing e
+      pop
+      unless (t' == fst (split t)) typeError
+      return $ T.DFun f t xs e'
+
+    DThm t -> T.DThm <$> typeCheck Nothing t
+
+instance TypeCheckable Thm where
+  type Checked Thm = T.Thm
+  typeCheck Nothing t = case t of
+    TStandalone n p    -> T.TStandalone n <$> typeCheck Nothing p
+    TUsing n p ns      -> flip (T.TUsing n) ns <$> typeCheck Nothing p
+    TLemma n p         -> T.TLemma n <$> typeCheck Nothing p
+    TLemmaUsing n p ns -> flip (T.TLemmaUsing n) ns <$> typeCheck Nothing p
+
+instance TypeCheckable Proposition where
+  type Checked Proposition = T.Proposition
+  typeCheck Nothing p = case p of
+    PForall vs t p -> do
+      mapM_ (flip introduce t) vs
+      T.PForall vs t <$> typeCheck Nothing p
+    PEqual l r -> T.PEqual <$> (snd <$> typeCheck Nothing l) <*> (snd <$> typeCheck Nothing r)
+    PExpr e -> T.PExpr . snd <$> typeCheck Nothing e
 
 -- Binds variables in the current context
 instance TypeCheckable Pat where
