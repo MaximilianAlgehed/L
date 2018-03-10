@@ -22,15 +22,12 @@ syn match hsStatement		"\<\(case\|of\|forall\)\>"
 syn match   hsLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"
 syn region  hsBlockComment     start="{-"  end="-}" contains=hsBlockComment
 
-syn match   hsSpecialChar	contained "\\\([0-9]\+\|o[0-7]\+\|x[0-9a-fA-F]\+\|[\"\\'&\\abfnrtv]\|^[A-Z^_\[\\\]]\)"
-
 " Define the default highlighting.
 " Only when an item doesn't have highlighting yet
 
 hi def link hsStructure			  Structure
 hi def link hsStatement			  Statement
 hi def link hsConditional			  Conditional
-hi def link hsSpecialChar			  SpecialChar
 hi def link hsVarSym			  hsOperator
 hi def link hsConSym			  hsOperator
 hi def link hsString			  String

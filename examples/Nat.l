@@ -42,15 +42,17 @@ mul n m = case n of
     Z   -> Z
   | S n -> add m (mul n m);
 
--- Proving this requires doing a case-split
--- on `x` in the first inductive subgoal:
--- `mul Z x = mul x Z`
+lemma mul-Z
+  forall n : Nat. mul n Z = Z;
+
+-- The proof of this theorem fails in the step case
 theorem mul-comm
   forall n : Nat. forall m : Nat.
-    mul n m = mul m n;
+    mul n m = mul m n
+using
+  mul-Z;
 
--- Twee diverges when trying to prove the step
--- case here. Don't know why :(
+-- The proof of this theorem fails in the step case
 theorem mul-assoc
   forall a : Nat. forall b : Nat. forall c : Nat.
     mul a (mul b c) = mul (mul a b) c;
