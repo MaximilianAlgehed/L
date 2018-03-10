@@ -17,6 +17,7 @@ import L.ErrM
 import L.Par
 import L.Axiomatisation
 import L.CoreLanguage
+import L.TypeCheck
 
 -- These parameters are pretty dumb, but they are good enough
 -- for playing around
@@ -28,7 +29,9 @@ main = do
   [f, problemName] <- getArgs 
   raw <- readFile f
   corePgm <- case pProgram (myLexer raw) of
-    Ok p  -> return (surfaceToCore p)
+    Ok p  -> case runTC $ typeCheck Nothing p of
+      Right p -> return (surfaceToCore p)
+      Left e  -> error e
     Bad e -> error e
 
   ax <- case runAM $ axiomatise corePgm >> gets theory of

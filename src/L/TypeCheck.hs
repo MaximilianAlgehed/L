@@ -15,30 +15,33 @@ data TCState = TCS { constructorTypes :: M.Map UIdent (Type, [Type])
 
 type TC a = StateT TCState (Either String) a
 
+runTC :: TC a -> Either String a
+runTC tc = evalStateT tc (TCS M.empty M.empty [])
+
 introduceC :: UIdent -> (Type, [Type]) -> TC ()
 introduceC c t = do
   m <- gets constructorTypes
   case M.lookup c m of
     Nothing -> modify $ \s -> s { constructorTypes = M.insert c t m }
-    Just _  -> typeError
+    Just _  -> typeError 0
 
 introduceF :: LIdent -> (Type, [Type]) -> TC ()
 introduceF f t = do
   m <- gets functionTypes
   case M.lookup f m of
     Nothing -> modify $ \s -> s { functionTypes = M.insert f t m }
-    Just _  -> typeError
+    Just _  -> typeError 1
 
 lookup :: Ord a => (TCState -> M.Map a t) -> a -> TC t
 lookup f v = do
   ctx <- gets f
-  maybe typeError return (M.lookup v ctx)
+  maybe (typeError 2) return (M.lookup v ctx)
 
 lookupVar :: LIdent -> TC Type
 lookupVar v = do
   ctx <- gets variableTypes
   case [ t | Just t <- M.lookup v <$> ctx ] of
-    []    -> typeError
+    []    -> typeError 3
     (t:_) -> return t
 
 push :: TC ()
@@ -51,13 +54,13 @@ introduce :: LIdent -> Type -> TC ()
 introduce v t = do
   ctx <- gets variableTypes
   case ctx of
-    []     -> typeError
+    []     -> typeError 4
     (m:ms) -> case M.lookup v m of
       Nothing -> modify $ \s -> s { variableTypes = M.insert v t m : ms }
-      Just _  -> typeError
+      Just _  -> typeError 5
 
-typeError :: TC a
-typeError = fail "Type error"
+typeError :: Int -> TC a
+typeError i = fail $ "Type error " ++ show i
 
 split :: Type -> (Type, [Type])
 split (MonoType ui) = (MonoType ui, [])
@@ -68,6 +71,10 @@ class TypeCheckable a where
   type Checked a :: *
   typeCheck :: Maybe Type -> a -> TC (Checked a)
 
+instance TypeCheckable Program where
+  type Checked Program = T.Program
+  typeCheck Nothing (P ds) = T.P <$> mapM (typeCheck Nothing) ds
+
 instance TypeCheckable Decl where
   type Checked Decl = T.Decl
   typeCheck Nothing d = case d of
@@ -76,14 +83,14 @@ instance TypeCheckable Decl where
       return $ T.DData n cs
 
     DFun f t f' xs e -> do
-      unless (f == f') typeError
-      unless (length xs <= (length . snd . split $ t)) typeError
+      unless (f == f') (typeError 6)
+      unless (length xs <= (length . snd . split $ t)) (typeError 7)
       introduceF f (split t)
       push
       zipWithM_ introduce xs (snd (split t))
       (t', e') <- typeCheck Nothing e
       pop
-      unless (t' == fst (split t)) typeError
+      unless (t' == fst (split t)) (typeError 8)
       return $ T.DFun f t xs e'
 
     DThm t -> T.DThm <$> typeCheck Nothing t
@@ -100,8 +107,11 @@ instance TypeCheckable Proposition where
   type Checked Proposition = T.Proposition
   typeCheck Nothing p = case p of
     PForall vs t p -> do
+      push
       mapM_ (flip introduce t) vs
-      T.PForall vs t <$> typeCheck Nothing p
+      p <- T.PForall vs t <$> typeCheck Nothing p
+      pop
+      return p
     PEqual l r -> T.PEqual <$> (snd <$> typeCheck Nothing l) <*> (snd <$> typeCheck Nothing r)
     PExpr e -> T.PExpr . snd <$> typeCheck Nothing e
 
@@ -116,8 +126,8 @@ instance TypeCheckable Pat where
 
     PCon c ps -> do
       (rt, argst) <- lookup constructorTypes c
-      unless (Just rt == t) typeError
-      unless (length ps == length argst) typeError
+      unless (Just rt == t) (typeError 9)
+      unless (length ps == length argst) (typeError 10)
       T.PCon c <$> zipWithM typeCheck (map Just argst) ps 
 
 instance TypeCheckable Expr where
@@ -129,21 +139,21 @@ instance TypeCheckable Expr where
 
     ECon c     -> do
       (rt, argst) <- lookup constructorTypes c
-      unless (null argst) typeError
+      unless (null argst) (typeError 11)
       return $ (rt, T.ECon rt c)
 
     EFApp f es -> do
       (rt, argst) <- lookup functionTypes f
-      unless (length es == length argst) typeError
+      unless (length es == length argst) (typeError 12)
       at' <- mapM (typeCheck Nothing) es
-      unless (map fst at' == argst) typeError
+      unless (map fst at' == argst) (typeError 13)
       return $ (rt, T.EFApp rt f (map snd at'))
 
     ECApp c es -> do
       (rt, argst) <- lookup constructorTypes c
-      unless (length es == length argst) typeError
+      unless (length es == length argst) (typeError 14)
       at' <- mapM (typeCheck Nothing) es
-      unless (map fst at' == argst) typeError
+      unless (map fst at' == argst) (typeError 15)
       return $ (rt, T.ECApp rt c (map snd at'))
 
     ECase e as -> do
@@ -155,5 +165,5 @@ instance TypeCheckable Expr where
              pop
              return $ (t, T.A pat' e')
         | A p e <- as ]
-      unless (all ((==fst (head as')) . fst) as') typeError
+      unless (all ((==fst (head as')) . fst) as') (typeError 16)
       return (fst (head as'), T.ECase (fst (head as')) e' (map snd as'))

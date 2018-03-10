@@ -1,6 +1,7 @@
 module L.CoreLanguage where
 
-import qualified L.Abs as A 
+import qualified L.TAbs as A
+import qualified L.Abs as A (Type(..), LIdent(..), UIdent(..), Constructor(..))
 
 -- Names
 newtype Name = Name { getName :: String } deriving (Ord, Eq)
@@ -63,7 +64,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
     decl d = case d of
       A.DData (A.UIdent n) cs -> [DataDecl (Name n) (map constructor cs)]
 
-      A.DFun (A.LIdent n) t (A.LIdent n') xs b ->
+      A.DFun (A.LIdent n) t xs b ->
         [ TypeDecl (Name n) (splitType t)
         , FunDecl (Name n) [ Name x | A.LIdent x <- xs ] (body b)]
 
@@ -94,7 +95,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     body :: A.Expr -> Body
     body b = case b of 
-      A.ECase (A.EVar (A.LIdent x)) as ->
+      A.ECase _ (A.EVar _ (A.LIdent x)) as ->
         Case (Name x) (map alternative as)
       e                       -> E (expr e)
 
@@ -103,12 +104,12 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     pattern :: A.Pat -> Pattern
     pattern p = case p of
-      A.PVar (A.LIdent n)    -> VariablePattern (Name n)
+      A.PVar _ (A.LIdent n)  -> VariablePattern (Name n)
       A.PCon (A.UIdent n) ps -> ConstructorPattern (Name n) (map pattern ps)
 
     expr :: A.Expr -> Expr
     expr e = case e of
-      A.EVar (A.LIdent x)     -> Var (Name x)
-      A.ECon (A.UIdent c)     -> FApp (Name c) []
-      A.EFApp (A.LIdent f) es -> FApp (Name f) (map expr es)
-      A.ECApp (A.UIdent f) es -> FApp (Name f) (map expr es)
+      A.EVar _ (A.LIdent x)     -> Var (Name x)
+      A.ECon _ (A.UIdent c)     -> FApp (Name c) []
+      A.EFApp _ (A.LIdent f) es -> FApp (Name f) (map expr es)
+      A.ECApp _ (A.UIdent f) es -> FApp (Name f) (map expr es)
