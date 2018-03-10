@@ -30,14 +30,14 @@ data Expr = Num Nat | Add Expr Expr | AddOne Expr;
 
 mirror : Expr -> Expr
 mirror e = case e of
-    Num n -> Num n
-  | Add l r -> Add (mirror r) (mirror l)
+    Num n    -> Num n
+  | Add l r  -> Add (mirror r) (mirror l)
   | AddOne e -> AddOne (mirror e);
 
 eval : Expr -> Nat
 eval e = case e of
-    Num n -> n
-  | Add l r -> add (eval l) (eval r)
+    Num n    -> n
+  | Add l r  -> add (eval l) (eval r)
   | AddOne e -> S (eval e);
 
 theorem eval-mirror
