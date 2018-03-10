@@ -96,7 +96,7 @@ instance Print Program where
 instance Print Decl where
   prt i e = case e of
     DData uident constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, doc (showString "="), prt 0 constructors])
-    DFun lident1 type_ lident2 lidents body -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, prt 0 lident2, prt 0 lidents, doc (showString "="), prt 0 body])
+    DFun lident1 type_ lident2 lidents expr -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, prt 0 lident2, prt 0 lidents, doc (showString "="), prt 0 expr])
     DThm thm -> prPrec i 0 (concatD [prt 0 thm])
   prtList _ [x] = (concatD [prt 0 x, doc (showString ";")])
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ";"), prt 0 xs])
@@ -125,14 +125,18 @@ instance Print Type where
     FunType type_1 type_2 -> prPrec i 0 (concatD [prt 1 type_1, doc (showString "->"), prt 0 type_2])
   prtList _ [] = (concatD [])
   prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
-instance Print Body where
+instance Print Expr where
   prt i e = case e of
-    BCase lident alts -> prPrec i 0 (concatD [doc (showString "case"), prt 0 lident, doc (showString "of"), prt 0 alts])
-    BExpr expr -> prPrec i 0 (concatD [prt 0 expr])
-
+    EVar lident -> prPrec i 2 (concatD [prt 0 lident])
+    ECon uident -> prPrec i 2 (concatD [prt 0 uident])
+    EFApp lident exprs -> prPrec i 1 (concatD [prt 0 lident, prt 2 exprs])
+    ECApp uident exprs -> prPrec i 1 (concatD [prt 0 uident, prt 2 exprs])
+    ECase expr alts -> prPrec i 0 (concatD [doc (showString "case"), prt 0 expr, doc (showString "of"), prt 0 alts])
+  prtList 2 [x] = (concatD [prt 2 x])
+  prtList 2 (x:xs) = (concatD [prt 2 x, prt 2 xs])
 instance Print Alt where
   prt i e = case e of
-    A pat expr -> prPrec i 0 (concatD [prt 0 pat, doc (showString "->"), prt 0 expr])
+    A pat expr -> prPrec i 0 (concatD [prt 0 pat, doc (showString "->"), prt 1 expr])
   prtList _ [] = (concatD [])
   prtList _ [x] = (concatD [prt 0 x])
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString "|"), prt 0 xs])
@@ -141,13 +145,5 @@ instance Print Pat where
     PVar lident -> prPrec i 1 (concatD [prt 0 lident])
     PCon uident pats -> prPrec i 0 (concatD [prt 0 uident, prt 1 pats])
   prtList 1 [] = (concatD [])
-  prtList 1 (x:xs) = (concatD [prt 1 x, prt 1 xs])
-instance Print Expr where
-  prt i e = case e of
-    EVar lident -> prPrec i 1 (concatD [prt 0 lident])
-    ECon uident -> prPrec i 1 (concatD [prt 0 uident])
-    EFApp lident exprs -> prPrec i 0 (concatD [prt 0 lident, prt 1 exprs])
-    ECApp uident exprs -> prPrec i 0 (concatD [prt 0 uident, prt 1 exprs])
-  prtList 1 [x] = (concatD [prt 1 x])
   prtList 1 (x:xs) = (concatD [prt 1 x, prt 1 xs])
 

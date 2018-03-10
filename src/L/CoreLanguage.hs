@@ -71,10 +71,14 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     theorem :: A.Thm -> Decl
     theorem t = case t of
-      A.TStandalone (A.LIdent n) p     -> TheoremDecl (Name n) (proposition p) []
-      A.TUsing (A.LIdent n) p ids      -> TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
-      A.TLemma (A.LIdent n) p          -> TheoremDecl (Name n) (proposition p) []
-      A.TLemmaUsing (A.LIdent n) p ids -> TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
+      A.TStandalone (A.LIdent n) p     ->
+        TheoremDecl (Name n) (proposition p) []
+      A.TUsing (A.LIdent n) p ids      ->
+        TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
+      A.TLemma (A.LIdent n) p          ->
+        TheoremDecl (Name n) (proposition p) []
+      A.TLemmaUsing (A.LIdent n) p ids ->
+        TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
 
 
     proposition :: A.Proposition -> Proposition
@@ -88,10 +92,11 @@ surfaceToCore (A.P ds) = concatMap decl ds
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map monoType ts)
 
-    body :: A.Body -> Body
+    body :: A.Expr -> Body
     body b = case b of 
-      A.BCase (A.LIdent x) as -> Case (Name x) (map alternative as)
-      A.BExpr e               -> E (expr e)
+      A.ECase (A.EVar (A.LIdent x)) as ->
+        Case (Name x) (map alternative as)
+      e                       -> E (expr e)
 
     alternative :: A.Alt -> (Pattern, Expr)
     alternative (A.A p e) = (pattern p, expr e)

@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 module L.TypeCheck where
 
 import Prelude hiding (lookup)
@@ -6,6 +7,7 @@ import Control.Monad.State
 import Data.Maybe
 
 import L.Abs
+import qualified L.TAbs as T
 
 data TCState = TCS { constructorTypes :: M.Map UIdent (Type, [Type])
                    , functionTypes    :: M.Map LIdent (Type, [Type])
@@ -44,42 +46,58 @@ typeError :: TC a
 typeError = fail "Type error"
 
 class TypeCheckable a where
-  typeCheck :: Type -> a -> TC ()
-
-instance TypeCheckable Body where
-  typeCheck t b = case b of
-    BCase x as -> do
-      xt <- lookupVar x
-      sequence_ [ push >> typeCheck xt p >> typeCheck t e >> pop
-                | A p e <- as ]
-    BExpr e -> typeCheck t e
+  type Checked a :: *
+  typeCheck :: Maybe Type -> a -> TC (Checked a)
 
 -- Binds variables in the current context
 instance TypeCheckable Pat where
+  type Checked Pat = T.Pat
   typeCheck t p = case p of
-    PVar v    -> introduce v t
+    PVar v    -> do
+      Just t <- return t
+      introduce v t
+      return $ T.PVar v
+
     PCon c ps -> do
       (rt, argst) <- lookup constructorTypes c
-      unless (rt == t) typeError
+      unless (Just rt == t) typeError
       unless (length ps == length argst) typeError
-      zipWithM_ typeCheck argst ps 
+      T.PCon c <$> zipWithM typeCheck (map Just argst) ps 
 
 instance TypeCheckable Expr where
-  typeCheck t e = case e of
+  type Checked Expr = (Type, T.Expr)
+  typeCheck _ e = case e of
     EVar v     -> do
       vt <- lookupVar v
-      unless (t == vt) typeError
+      return (vt, T.EVar vt v)
+
     ECon c     -> do
       (rt, argst) <- lookup constructorTypes c
-      unless (rt == t) typeError
       unless (null argst) typeError
+      return $ (rt, T.ECon rt c)
+
     EFApp f es -> do
       (rt, argst) <- lookup functionTypes f
-      unless (rt == t) typeError
       unless (length es == length argst) typeError
-      zipWithM_ typeCheck argst es
+      at' <- mapM (typeCheck Nothing) es
+      unless (map fst at' == argst) typeError
+      return $ (rt, T.EFApp rt f (map snd at'))
+
     ECApp c es -> do
       (rt, argst) <- lookup constructorTypes c
-      unless (rt == t) typeError
       unless (length es == length argst) typeError
-      zipWithM_ typeCheck argst es
+      at' <- mapM (typeCheck Nothing) es
+      unless (map fst at' == argst) typeError
+      return $ (rt, T.ECApp rt c (map snd at'))
+
+    ECase e as -> do
+      (et, e') <- typeCheck Nothing e
+      as' <- sequence
+        [ do push
+             pat'    <- typeCheck (Just et) p
+             (t, e') <- typeCheck Nothing e
+             pop
+             return $ (t, T.A pat' e')
+        | A p e <- as ]
+      unless (all ((==fst (head as')) . fst) as') typeError
+      return (fst (head as'), T.ECase (fst (head as')) e' (map snd as'))

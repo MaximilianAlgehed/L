@@ -18,6 +18,8 @@ library
   exposed-modules:     L.CoreLanguage
                      , L.Axiomatisation
                      , L.TypeCheck
+                     , L.TAbs
+                     , L.Normalisation
                      , L.Abs
                      , L.ErrM
                      , L.Lex

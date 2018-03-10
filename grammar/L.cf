@@ -10,7 +10,7 @@ terminator nonempty Decl ";";
 
 -- All declarations
 DData. Decl ::= "data" UIdent "=" [Constructor];
-DFun.  Decl ::= LIdent ":" Type LIdent [LIdent] "=" Body;
+DFun.  Decl ::= LIdent ":" Type LIdent [LIdent] "=" Expr;
 DThm.  Decl ::= Thm;
 
 TStandalone. Thm ::= "theorem" LIdent Proposition;
@@ -34,18 +34,25 @@ separator Type "";
 
 -- Types
 MonoType. Type1 ::= UIdent;
---TypeVar.  Type1 ::= LIdent;
 FunType.  Type  ::= Type1 "->" Type;
 
 coercions Type 1;
 
--- Function Bodies
-BCase. Body ::= "case" LIdent "of" [Alt] ;
-BExpr. Body ::= Expr;
+-- Expressions
+EVar.  Expr2 ::= LIdent;
+ECon.  Expr2 ::= UIdent;
+EFApp. Expr1 ::= LIdent [Expr2];
+ECApp. Expr1 ::= UIdent [Expr2];
+ECase. Expr  ::= "case" Expr "of" [Alt];
+
+coercions Expr 2;
+
+separator nonempty Expr2 "";
+
+-- Case alternatives
+A. Alt ::= Pat "->" Expr1;
 
 separator Alt "|";
-
-A. Alt ::= Pat "->" Expr;
 
 -- Patterns
 PVar.  Pat1 ::= LIdent;
@@ -54,13 +61,3 @@ PCon.  Pat  ::= UIdent [Pat1];
 coercions Pat 1;
 
 separator Pat1 "";
-
--- Expressions
-EVar.  Expr1 ::= LIdent;
-ECon.  Expr1 ::= UIdent;
-EFApp. Expr  ::= LIdent [Expr1];
-ECApp. Expr  ::= UIdent [Expr1];
-
-coercions Expr 1;
-
-separator nonempty Expr1 "";

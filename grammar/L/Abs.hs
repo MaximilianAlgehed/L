@@ -14,7 +14,7 @@ data Program = P [Decl]
 
 data Decl
     = DData UIdent [Constructor]
-    | DFun LIdent Type LIdent [LIdent] Body
+    | DFun LIdent Type LIdent [LIdent] Expr
     | DThm Thm
   deriving (Eq, Ord, Show, Read)
 
@@ -35,19 +35,17 @@ data Constructor = C UIdent [Type]
 data Type = MonoType UIdent | FunType Type Type
   deriving (Eq, Ord, Show, Read)
 
-data Body = BCase LIdent [Alt] | BExpr Expr
+data Expr
+    = EVar LIdent
+    | ECon UIdent
+    | EFApp LIdent [Expr]
+    | ECApp UIdent [Expr]
+    | ECase Expr [Alt]
   deriving (Eq, Ord, Show, Read)
 
 data Alt = A Pat Expr
   deriving (Eq, Ord, Show, Read)
 
 data Pat = PVar LIdent | PCon UIdent [Pat]
-  deriving (Eq, Ord, Show, Read)
-
-data Expr
-    = EVar LIdent
-    | ECon UIdent
-    | EFApp LIdent [Expr]
-    | ECApp UIdent [Expr]
   deriving (Eq, Ord, Show, Read)
 

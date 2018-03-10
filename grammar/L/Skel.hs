@@ -21,7 +21,7 @@ transProgram x = case x of
 transDecl :: Decl -> Result
 transDecl x = case x of
   DData uident constructors -> failure x
-  DFun lident1 type_ lident2 lidents body -> failure x
+  DFun lident1 type_ lident2 lidents expr -> failure x
   DThm thm -> failure x
 transThm :: Thm -> Result
 transThm x = case x of
@@ -41,10 +41,13 @@ transType :: Type -> Result
 transType x = case x of
   MonoType uident -> failure x
   FunType type_1 type_2 -> failure x
-transBody :: Body -> Result
-transBody x = case x of
-  BCase lident alts -> failure x
-  BExpr expr -> failure x
+transExpr :: Expr -> Result
+transExpr x = case x of
+  EVar lident -> failure x
+  ECon uident -> failure x
+  EFApp lident exprs -> failure x
+  ECApp uident exprs -> failure x
+  ECase expr alts -> failure x
 transAlt :: Alt -> Result
 transAlt x = case x of
   A pat expr -> failure x
@@ -52,10 +55,4 @@ transPat :: Pat -> Result
 transPat x = case x of
   PVar lident -> failure x
   PCon uident pats -> failure x
-transExpr :: Expr -> Result
-transExpr x = case x of
-  EVar lident -> failure x
-  ECon uident -> failure x
-  EFApp lident exprs -> failure x
-  ECApp uident exprs -> failure x
 
