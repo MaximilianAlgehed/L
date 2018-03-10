@@ -112,7 +112,7 @@ instance TypeCheckable Pat where
     PVar v    -> do
       Just t <- return t
       introduce v t
-      return $ T.PVar v
+      return $ T.PVar t v
 
     PCon c ps -> do
       (rt, argst) <- lookup constructorTypes c

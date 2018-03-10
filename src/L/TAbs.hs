@@ -34,6 +34,6 @@ data Expr
 data Alt = A Pat Expr
   deriving (Eq, Ord, Show, Read)
 
-data Pat = PVar LIdent | PCon UIdent [Pat]
+data Pat = PVar Type LIdent | PCon UIdent [Pat]
   deriving (Eq, Ord, Show, Read)
 
