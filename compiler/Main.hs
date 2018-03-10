@@ -22,9 +22,6 @@ main = do
     Ok p  -> return (surfaceToCore p)
     Bad e -> error e
 
-  putStrLn "\n== Core Abtract Syntax =="
-  print corePgm
-
   ax <- case runAM $ axiomatise corePgm >> gets theory of
     Left err -> error err
     Right as -> return as
@@ -36,21 +33,24 @@ main = do
     Left err -> error err
     Right ps -> return ps
 
-  putStrLn $ "\n== Attacking Problem \"" ++ problemName ++ "\" =="
-  sequence_ [ do putStrLn "-- Theory --"
+  putStrLn $ "\n== Attacking Problem \"" ++ problemName ++ "\" ==\n"
+  sequence_ [ do putStrLn "-- Base Theory --"
                  mapM_ prettyPrint (given p)
+                 unless (null (lemmas p)) $ putStrLn "-- Lemmas --"
+                 mapM_ prettyPrint (lemmas p)
                  unless (null (hypotheses p)) $ putStrLn "-- Hypotheses --"
                  mapM_ prettyPrint (hypotheses p)
                  putStrLn "-- Goal --"
                  prettyPrint (goal p)
-                 let axioms = [ Axiom i ("ax" ++ show i) ax | (ax, i) <- zip (hypotheses p ++ given p) [0..] ]
+                 let axioms = [ Axiom i ("ax" ++ show i) ax
+                              | (ax, i) <- zip (hypotheses p ++ given p ++ lemmas p) [0..] ]
                  let g = T.goal 0 "the goal" (goal p)
-                 let st = addGoal defaultConfig (foldr (\a s -> addAxiom defaultConfig s a) initialState axioms) g
-                 st' <- complete (Output (\_ -> return ())) defaultConfig st
+                 let cfg = defaultConfig
+                 let st = addGoal cfg (foldr (\a s -> addAxiom cfg s a) initialState axioms) g
                  putStrLn "\n"
-                 if solved st then
-                   putStrLn "Twee solved it!"
+                 if solved (completePure cfg st) then
+                   putStrLn "Found proof of branch :)"
                  else
-                   putStrLn "Twee didn't solve it :("
+                   putStrLn "Didn't find proof of branch :("
                  putStrLn "\n"
             | p <- attacked ]

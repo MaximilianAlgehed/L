@@ -12,7 +12,40 @@ lemma add-Z
 lemma add-S
   forall n : Nat. forall m : Nat. add n (S m) = S (add n m);
 
+lemma add-move-S
+  forall n : Nat. forall m : Nat. add (S n) m = add n (S m);
+
 theorem add-comm
   forall n : Nat. forall m : Nat. add n m = add m n
 using
   add-S add-Z;
+
+theorem add-assoc
+  forall a : Nat. forall b : Nat. forall c : Nat.
+    add a (add b c) = add (add a b) c;
+
+addFast : Nat -> Nat -> Nat
+addFast n m = case n of
+    Z   -> m
+  | S n -> addFast n (S m);
+
+theorem add-addFast
+  forall n : Nat. forall m : Nat. add n m = addFast n m
+using
+  add-move-S;
+
+mul : Nat -> Nat -> Nat
+mul n m = case n of
+    Z   -> Z
+  | S n -> add m (mul n m);
+
+-- Proving this requires doing a case-split
+-- on `x` in the first inductive subgoal:
+-- `mul Z x = mul x Z`
+theorem mul-comm
+  forall n : Nat. forall m : Nat.
+    mul n m = mul m n;
+
+theorem mul-assoc
+  forall a : Nat. forall b : Nat. forall c : Nat.
+    mul a (mul b c) = mul (mul a b) c;

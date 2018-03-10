@@ -17,9 +17,11 @@ import L.CoreLanguage
 
 data FI = F { arityF :: Int
             , nameF  :: Name
+            , invis  :: Bool
             }
         | T { arityF :: Int
-            , typ    :: Type }
+            , typ    :: Type
+            , invis  :: Bool }
         deriving (Ord, Eq, Show)
 
 instance Sized FI where
@@ -29,12 +31,13 @@ instance Arity FI where
   arity = arityF
 
 instance Pretty FI where
-  pPrint f@(F _ _)= text . ("'" ++) . show . nameF $ f
-  pPrint t@(T _ _)= text . ("tt" ++ ) . show . typ   $ t
+  pPrint f@(F _ _ _)= text . ("'" ++) . show . nameF $ f
+  pPrint t@(T _ _ _)= text . ("tt" ++ ) . show . typ   $ t
 
 instance EqualsBonus FI where
 
 instance PrettyTerm FI where
+  termStyle f = if invis f then invisible else curried
 
 instance Ordered (Extended FI) where
    lessEq = Twee.KBO.lessEq
@@ -62,7 +65,7 @@ runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty 0 [])
 -- Introduce a new function symbol of a certain arity
 -- to the context
 addF :: Name -> Int -> AM ()
-addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n) (nameMap s) }
+addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n False) (nameMap s) }
 
 addT :: Name -> (Type, [Type]) -> AM ()
 addT n t = modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
@@ -132,7 +135,7 @@ freshSkolem t = do
   return . typeTag t . build . con . skolem . V $ idx
 
 typeTag :: Type -> Term F -> Term F
-typeTag t tm = apply (Function (T 1 t)) [tm]
+typeTag t tm = apply (Function (T 1 t True)) [tm]
 
 exprToTerm :: Expr -> AM (Term F)
 exprToTerm e = case e of
@@ -208,9 +211,10 @@ axiomatise ps = do
   axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ _ _) <- ps ]
   modify $ \s -> s { theory = axs }
 
-data Problem = Problem { goal :: Equation F
+data Problem = Problem { goal       :: Equation F
                        , hypotheses :: [Equation F]
-                       , given :: [Equation F]
+                       , lemmas     :: [Equation F]
+                       , given      :: [Equation F]
                        }
 
 type InductionSchema = Proposition -> AM [Problem]
@@ -254,7 +258,7 @@ structuralInduction t def prop = do
         -- Get the constructor term
         c <- getF cn
         let term = typeTag t $ apply c arguments
-        return $ Problem { goal = (substEq (fromJust $ T.listToSubst [(V idx, term)]) goal), hypotheses = ihs, given = thy }
+        return $ Problem { goal = (substEq (fromJust $ T.listToSubst [(V idx, term)]) goal), hypotheses = ihs, given = thy, lemmas = [] }
     | (cn, ts) <- def ]
 
 -- Do structural induction on the first argument
@@ -264,7 +268,7 @@ structInductOnFirst prop =
     ([], (lhs, rhs)) -> do
       g <- (:=:) <$> exprToTerm lhs <*> exprToTerm rhs
       thy <- gets theory
-      return [Problem { goal = g, given = thy, hypotheses = [] }]
+      return [Problem { goal = g, given = thy, hypotheses = [], lemmas = [] }]
     ((_, t):_, _) -> do
       def <- getDef t
       structuralInduction t def prop
@@ -292,6 +296,7 @@ attack n prg = runAM $ do
   case [ (p, extras) | TheoremDecl n' p extras <- prg, n == n' ] of
     []    -> throwError "Can't attack a non-existent problem!"
     (p:_) -> do
-      hyps <- mapM assume (snd p)
+      extras <- mapM assume (snd p)
       problems <- structInductOnFirst (fst p)
-      return [ p { hypotheses = hypotheses p ++ hyps } | p <- problems ]
+      -- Add lemmas
+      return [ p { lemmas = lemmas p ++ extras } | p <- problems ]
