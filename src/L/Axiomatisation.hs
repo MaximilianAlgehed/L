@@ -250,15 +250,17 @@ structuralInduction t def prop = do
   sequence
     [ do
         -- One skolem variable for each recursive occurance of the type `t`
-        skolems <- mapM freshSkolem [ t | t' <- ts, t == t' ]
+        -- and a normal variable otherwise
+        vars <- sequence [ if t == t' then freshSkolem t' else freshVar t' | t' <- ts ]
+        let skolems = [ v | (v, t') <- zip vars ts, t == t' ]
         -- Create I.H for each skolem variable
         let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) goal | sk <- skolems ]
-        -- Constructor arguments for the final goal
-        arguments <- sequence [ if t == t' then return sk else freshVar t' | (t', sk) <- zip ts skolems ]
         -- Get the constructor term
         c <- getF cn
-        let term = typeTag t $ apply c arguments
-        return $ Problem { goal = (substEq (fromJust $ T.listToSubst [(V idx, term)]) goal), hypotheses = ihs, given = thy, lemmas = [] }
+        let term = typeTag t $ apply c vars
+        return $ Problem { goal = (substEq (fromJust $ T.listToSubst [(V idx, term)]) goal)
+                         , hypotheses = ihs
+                         , given = thy, lemmas = [] }
     | (cn, ts) <- def ]
 
 -- Do structural induction on the first argument
