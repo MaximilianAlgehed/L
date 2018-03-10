@@ -49,6 +49,7 @@ data AState = S { nameMap     :: M.Map Name F
                 , nameTypes   :: M.Map Name (Type, [Type])
                 , variableMap :: M.Map Name (Term F) 
                 , definitions :: M.Map Type [(Name, [Type])]
+                , theorems    :: M.Map Name Proposition
                 , nextVarId   :: Int
                 , theory      :: [Equation F]
                 }
@@ -56,7 +57,7 @@ data AState = S { nameMap     :: M.Map Name F
 type AM a = StateT AState (Either String) a
 
 runAM :: AM a -> Either String a
-runAM am = evalStateT am (S M.empty M.empty M.empty M.empty 0 [])
+runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty 0 [])
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
@@ -68,6 +69,14 @@ addT n t = modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
 
 addDef :: Type -> [(Name, [Type])] -> AM ()
 addDef t d = modify $ \s -> s { definitions = M.insert t d (definitions s) }
+
+addThm :: Name -> Proposition -> AM ()
+addThm n p = modify $ \s -> s { theorems = M.insert n p (theorems s) }
+
+getThm :: Name -> AM Proposition
+getThm n = do
+  thm <- gets theorems
+  maybe (throwError "Unknown theorem") return (M.lookup n thm)
 
 getF :: Name -> AM F
 getF n = do
@@ -193,6 +202,8 @@ axiomatise ps = do
   -- Introduce function types
   sequence_ [ addT n t
             | TypeDecl n t <- ps ] 
+  -- Introduce all theorems to the context
+  sequence_ [ addThm n p | TheoremDecl n p _ <- ps ]
   -- Compute axiomatisation from the functions
   axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ _ _) <- ps ]
   modify $ \s -> s { theory = axs }
@@ -258,10 +269,29 @@ structInductOnFirst prop =
       def <- getDef t
       structuralInduction t def prop
 
+proposition :: Proposition -> AM (Equation F)
+proposition p = case p of
+  Forall n t p -> do
+    introduceV n t
+    proposition p
+  Equal e0 e1 -> do
+    lhs <- exprToTerm e0
+    rhs <- exprToTerm e1
+    return (lhs :=: rhs)
+  Boolean e0 -> throwError "We don't deal with booleans yet"
+
+assume :: Name -> AM (Equation F)
+assume n = do
+  thmDef <- getThm n
+  proposition thmDef 
+
 {- Function to test the induction schema generation -}
 attack :: Name -> Program -> Either String [Problem]
 attack n prg = runAM $ do
   axiomatise prg
-  case [ p | TheoremDecl n' p extras <- prg, n == n' ] of
+  case [ (p, extras) | TheoremDecl n' p extras <- prg, n == n' ] of
     []    -> throwError "Can't attack a non-existent problem!"
-    (p:_) -> structInductOnFirst p
+    (p:_) -> do
+      hyps <- mapM assume (snd p)
+      problems <- structInductOnFirst (fst p)
+      return [ p { hypotheses = hypotheses p ++ hyps } | p <- problems ]

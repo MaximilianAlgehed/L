@@ -13,6 +13,6 @@ lemma add-S
   forall n : Nat. forall m : Nat. add n (S m) = S (add n m);
 
 theorem add-comm
-  forall n : Nat. forall m : Nat. add n m = add m 
+  forall n : Nat. forall m : Nat. add n m = add m n
 using
   add-S add-Z;

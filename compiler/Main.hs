@@ -37,7 +37,9 @@ main = do
     Right ps -> return ps
 
   putStrLn $ "\n== Attacking Problem \"" ++ problemName ++ "\" =="
-  sequence_ [ do unless (null (hypotheses p)) $ putStrLn "-- Induction Hypotheses --"
+  sequence_ [ do putStrLn "-- Theory --"
+                 mapM_ prettyPrint (given p)
+                 unless (null (hypotheses p)) $ putStrLn "-- Hypotheses --"
                  mapM_ prettyPrint (hypotheses p)
                  putStrLn "-- Goal --"
                  prettyPrint (goal p)
