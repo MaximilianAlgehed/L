@@ -19,12 +19,13 @@ TLemma.      Thm ::= "lemma" LIdent Proposition;
 TLemmaUsing. Thm ::= "lemma" LIdent Proposition "using" [LIdent];
 
 separator Constructor "|";
-separator LIdent "";
 
 -- Propositions
-PForall. Proposition ::= "forall" LIdent ":" Type "." Proposition;
+PForall. Proposition ::= "forall" [LIdent] ":" Type "." Proposition;
 PEqual.  Proposition ::= Expr "=" Expr;
 PExpr.   Proposition ::= Expr;
+
+separator nonempty LIdent "";
 
 -- Constructors
 C. Constructor ::= UIdent [Type];

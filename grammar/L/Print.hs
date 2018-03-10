@@ -85,7 +85,7 @@ instance Print UIdent where
 
 instance Print LIdent where
   prt _ (LIdent i) = doc (showString ( i))
-  prtList _ [] = (concatD [])
+  prtList _ [x] = (concatD [prt 0 x])
   prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 
 
@@ -109,7 +109,7 @@ instance Print Thm where
 
 instance Print Proposition where
   prt i e = case e of
-    PForall lident type_ proposition -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lident, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 proposition])
+    PForall lidents type_ proposition -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lidents, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 proposition])
     PEqual expr1 expr2 -> prPrec i 0 (concatD [prt 0 expr1, doc (showString "="), prt 0 expr2])
     PExpr expr -> prPrec i 0 (concatD [prt 0 expr])
 

@@ -11,18 +11,18 @@ lemma add-Z
   forall n : Nat. add n Z = n;
 
 lemma add-S
-  forall n : Nat. forall m : Nat. add n (S m) = S (add n m);
+  forall n m : Nat. add n (S m) = S (add n m);
 
 lemma add-move-S
-  forall n : Nat. forall m : Nat. add (S n) m = add n (S m);
+  forall n m : Nat. add (S n) m = add n (S m);
 
 theorem add-comm
-  forall n : Nat. forall m : Nat. add n m = add m n
+  forall n m : Nat. add n m = add m n
 using
   add-S add-Z;
 
 theorem add-assoc
-  forall a : Nat. forall b : Nat. forall c : Nat.
+  forall a b c : Nat.
     add a (add b c) = add (add a b) c;
 
 {- Expression trees for natural numbers -}

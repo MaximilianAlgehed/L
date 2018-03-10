@@ -10,18 +10,18 @@ lemma add-Z
   forall n : Nat. add n Z = n;
 
 lemma add-S
-  forall n : Nat. forall m : Nat. add n (S m) = S (add n m);
+  forall n m : Nat. add n (S m) = S (add n m);
 
 lemma add-move-S
-  forall n : Nat. forall m : Nat. add (S n) m = add n (S m);
+  forall n m : Nat. add (S n) m = add n (S m);
 
 theorem add-comm
-  forall n : Nat. forall m : Nat. add n m = add m n
+  forall n m : Nat. add n m = add m n
 using
   add-S add-Z;
 
 theorem add-assoc
-  forall a : Nat. forall b : Nat. forall c : Nat.
+  forall a b c : Nat.
     add a (add b c) = add (add a b) c;
 
 addFast : Nat -> Nat -> Nat
@@ -30,7 +30,7 @@ addFast n m = case n of
   | S n -> addFast n (S m);
 
 theorem add-addFast
-  forall n : Nat. forall m : Nat. add n m = addFast n m
+  forall n m : Nat. add n m = addFast n m
 using
   add-move-S;
 
@@ -44,12 +44,12 @@ lemma mul-Z
 
 -- The proof of this theorem fails in the step case
 theorem mul-comm
-  forall n : Nat. forall m : Nat.
+  forall n m : Nat.
     mul n m = mul m n
 using
   mul-Z;
 
 -- The proof of this theorem fails in the step case
 theorem mul-assoc
-  forall a : Nat. forall b : Nat. forall c : Nat.
+  forall a b c : Nat.
     mul a (mul b c) = mul (mul a b) c;

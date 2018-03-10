@@ -31,7 +31,7 @@ transThm x = case x of
   TLemmaUsing lident proposition lidents -> failure x
 transProposition :: Proposition -> Result
 transProposition x = case x of
-  PForall lident type_ proposition -> failure x
+  PForall lidents type_ proposition -> failure x
   PEqual expr1 expr2 -> failure x
   PExpr expr -> failure x
 transConstructor :: Constructor -> Result

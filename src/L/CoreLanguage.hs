@@ -79,9 +79,11 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     proposition :: A.Proposition -> Proposition
     proposition p = case p of
-      A.PForall (A.LIdent n) t p -> Forall (Name n) (monoType t) (proposition p)
-      A.PEqual el er             -> Equal (expr el) (expr er)
-      A.PExpr e                  -> Boolean (expr e)
+      A.PForall ns t p -> foldr (\(A.LIdent n) p -> Forall (Name n) (monoType t) p)
+                                (proposition p)
+                                ns
+      A.PEqual el er   -> Equal (expr el) (expr er)
+      A.PExpr e        -> Boolean (expr e)
 
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map monoType ts)

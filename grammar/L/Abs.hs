@@ -26,7 +26,7 @@ data Thm
   deriving (Eq, Ord, Show, Read)
 
 data Proposition
-    = PForall LIdent Type Proposition | PEqual Expr Expr | PExpr Expr
+    = PForall [LIdent] Type Proposition | PEqual Expr Expr | PExpr Expr
   deriving (Eq, Ord, Show, Read)
 
 data Constructor = C UIdent [Type]
