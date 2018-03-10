@@ -51,6 +51,6 @@ main = do
                  if solved st then
                    putStrLn "Twee solved it!"
                  else
-                   putStrLn "Twee didn't solve it"
+                   putStrLn "Twee didn't solve it :("
                  putStrLn "\n"
             | p <- attacked ]
