@@ -44,3 +44,6 @@ theorem eval-mirror
   forall e : Expr. eval (mirror e) = eval e
 using
   add-comm;
+
+theorem mirror-mirror
+  forall e : Expr. mirror (mirror e) = e;
