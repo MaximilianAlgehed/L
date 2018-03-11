@@ -27,7 +27,7 @@ library
                      , L.Print
                      , L.Skel
   build-depends:       base >= 4.7 && < 5
-                     , twee-lib == 2.1.3
+                     , twee-lib == 2.1.4
                      , mtl
                      , containers
                      , array
@@ -41,7 +41,7 @@ executable lc
   build-depends:
       L
     , base >=4.7 && <5
-    , twee-lib == 2.1.3
+    , twee-lib == 2.1.4
     , mtl
   other-modules:
   default-language: Haskell2010

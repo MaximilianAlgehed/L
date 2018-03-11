@@ -12,17 +12,10 @@ lemma add-Z
 lemma add-S
   forall n m : Nat. add n (S m) = S (add n m);
 
-lemma add-move-S
-  forall n m : Nat. add (S n) m = add n (S m);
-
 theorem add-comm
   forall n m : Nat. add n m = add m n
 using
   add-S add-Z;
-
-theorem add-assoc
-  forall a b c : Nat.
-    add a (add b c) = add (add a b) c;
 
 {- Expression trees for natural numbers -}
 data Expr = Num Nat | Add Expr Expr | AddOne Expr;
@@ -61,19 +54,11 @@ compile e = compileCont e HALT;
 runExpr : Expr -> State
 runExpr e = run (State (compile e) Empty);
 
-lemma compile-cont
+lemma compiler-strong
   forall e : Expr. forall s : Stack. forall p : Prog.
     run (State (compileCont e p) s) = run (State p (Push (eval e) s))
-using
-  add-comm;
-
-lemma compiler-correct-strong
-  forall e : Expr. forall s : Stack.
-    run (State (compile e) s) = State HALT (Push (eval e) s)
-using
-  compile-cont;
+using add-comm;
 
 theorem compiler-correct
   forall e : Expr. runExpr e = State HALT (Push (eval e) Empty)
-using
-  compiler-correct-strong;
+using compiler-strong;

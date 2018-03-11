@@ -42,6 +42,10 @@ mul n m = case n of
 lemma mul-Z
   forall n : Nat. mul n Z = Z;
 
+theorem mul-add-distr
+  forall a b c : Nat.
+    mul a (add b c) = add (mul a b) (mul a c);
+
 -- The proof of this theorem fails in the step case
 theorem mul-comm
   forall n m : Nat.
