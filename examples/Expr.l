@@ -1,4 +1,3 @@
-
 {- Standard Nat theory -}
 data Nat = Z | S Nat;
 
@@ -62,9 +61,17 @@ compile e = compileCont e HALT;
 runExpr : Expr -> State
 runExpr e = run (State (compile e) Empty);
 
+lemma compile-cont
+  forall e : Expr. forall s : Stack. forall p : Prog.
+    run (State (compileCont e p) s) = run (State p (Push (eval e) s))
+using
+  add-comm;
+
 lemma compiler-correct-strong
   forall e : Expr. forall s : Stack.
-    run (State (compile e) s) = State HALT (Push (eval e) s);
+    run (State (compile e) s) = State HALT (Push (eval e) s)
+using
+  compile-cont;
 
 theorem compiler-correct
   forall e : Expr. runExpr e = State HALT (Push (eval e) Empty)

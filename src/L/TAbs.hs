@@ -41,4 +41,3 @@ split :: Type -> (Type, [Type])
 split (MonoType ui) = (MonoType ui, [])
 split (FunType a r) =
   let (res, as) = split r in (res, a : as)
-

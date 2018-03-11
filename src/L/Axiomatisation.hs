@@ -171,7 +171,7 @@ functionToEquations d = case d of
                (t:_) -> return t
              pat     <- patternToTerm typ pat
              -- Replace the occurance of `x` with `pat` in the list of arguments
-             let xs' = [ if x /= x_i then x_t else pat | (x_i, x_t) <- zip xs xs_ ]
+             let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
              e       <- exprToTerm expr
              return $ typeTag t (apply f xs') :=: e
         | (pat, expr) <- ps ]

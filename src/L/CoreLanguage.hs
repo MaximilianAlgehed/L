@@ -50,7 +50,7 @@ data Expr = FApp Name [Expr]
 splitType :: A.Type -> (Type, [Type])
 splitType = go []
   where
-    go ts (A.MonoType (A.UIdent t)) = (MonoType (Name t), ts)
+    go ts (A.MonoType (A.UIdent t)) = (MonoType (Name t), reverse ts)
     go ts (A.FunType t0 t1)        = go (monoType t0 : ts) t1
 
 monoType :: A.Type -> Type
