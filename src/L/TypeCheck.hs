@@ -32,10 +32,10 @@ introduceF f t = do
     Nothing -> modify $ \s -> s { functionTypes = M.insert f t m }
     Just _  -> typeError 1
 
-lookup :: Ord a => (TCState -> M.Map a t) -> a -> TC t
+lookup :: (Ord a, Show a) => (TCState -> M.Map a t) -> a -> TC t
 lookup f v = do
   ctx <- gets f
-  maybe (typeError 2) return (M.lookup v ctx)
+  maybe (fail $ "Unbound symbol " ++ show v) return (M.lookup v ctx)
 
 lookupVar :: LIdent -> TC Type
 lookupVar v = do

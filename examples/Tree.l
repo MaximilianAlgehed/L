@@ -46,3 +46,44 @@ theorem mirror-sum
   forall t : NatTree. treeSum t = treeSum (mirror t)
 using
   add-comm;
+
+{- A little bit of List theory -}
+data NatList = Nil | Cons Nat NatList;
+
+append : NatList -> NatList -> NatList
+append xs ys = case xs of
+    Nil       -> ys
+  | Cons x xs -> Cons x (append xs ys);
+
+lemma append-nil
+  forall xs : NatList.
+    append xs Nil = xs;
+
+theorem append-assoc
+  forall xs ys zs : NatList.
+    append xs (append ys zs) = append (append xs ys) zs;
+
+{- Mising Nat and List theory -}
+listSum : NatList -> Nat
+listSum xs = case xs of
+    Nil -> Z
+  | Cons n xs -> add n (listSum xs);
+
+lemma append-sum
+  forall xs ys : NatList.
+    listSum (append xs ys) = add (listSum xs) (listSum ys)
+using
+  add-assoc;
+
+{- Mising Tree and List theory -}
+flatten : NatTree -> NatList
+flatten t = case t of
+    Leaf       -> Nil
+  | Fork n l r -> append (flatten l) (append (Cons n Nil) (flatten r));
+
+-- This triggers the infinite rewrite cycle bug :(
+theorem flatten-mirror-sum
+  forall t : NatTree.
+    listSum (flatten t) = listSum (flatten (mirror t))
+using
+  append-sum mirror-sum append-assoc;
