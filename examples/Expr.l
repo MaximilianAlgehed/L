@@ -28,22 +28,45 @@ theorem add-assoc
 {- Expression trees for natural numbers -}
 data Expr = Num Nat | Add Expr Expr | AddOne Expr;
 
-mirror : Expr -> Expr
-mirror e = case e of
-    Num n    -> Num n
-  | Add l r  -> Add (mirror r) (mirror l)
-  | AddOne e -> AddOne (mirror e);
-
 eval : Expr -> Nat
 eval e = case e of
     Num n    -> n
   | Add l r  -> add (eval l) (eval r)
   | AddOne e -> S (eval e);
 
-theorem eval-mirror
-  forall e : Expr. eval (mirror e) = eval e
-using
-  add-comm;
+{- Abstract machine -}
+data Prog = LOAD Nat Prog
+          | ADD Prog
+          | HALT;
 
-theorem mirror-mirror
-  forall e : Expr. mirror (mirror e) = e;
+data Stack = Empty
+           | Push Nat Stack;
+
+data State = State Prog Stack;
+
+run : State -> State
+run st = case st of
+    State HALT s                      -> State HALT s
+  | State (LOAD n p) s                -> run (State p (Push n s))
+  | State (ADD p) (Push m (Push n s)) -> run (State p (Push (add n m) s));
+
+compileCont : Expr -> Prog -> Prog
+compileCont e cont = case e of
+    Num n    -> LOAD n cont
+  | Add l r  -> compileCont l (compileCont r (ADD cont))
+  | AddOne e -> compileCont e (LOAD (S Z) (ADD cont));
+
+compile : Expr -> Prog 
+compile e = compileCont e HALT;
+
+runExpr : Expr -> State
+runExpr e = run (State (compile e) Empty);
+
+lemma compiler-correct-strong
+  forall e : Expr. forall s : Stack.
+    run (State (compile e) s) = State HALT (Push (eval e) s);
+
+theorem compiler-correct
+  forall e : Expr. runExpr e = State HALT (Push (eval e) Empty)
+using
+  compiler-correct-strong;

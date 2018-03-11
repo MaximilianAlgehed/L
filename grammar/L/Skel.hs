@@ -54,5 +54,6 @@ transAlt x = case x of
 transPat :: Pat -> Result
 transPat x = case x of
   PVar lident -> failure x
+  PConE uident -> failure x
   PCon uident pats -> failure x
 

@@ -56,8 +56,9 @@ separator Alt "|";
 
 -- Patterns
 PVar.  Pat1 ::= LIdent;
+PConE. Pat1 ::= UIdent;
 PCon.  Pat  ::= UIdent [Pat1];
 
 coercions Pat 1;
 
-separator Pat1 "";
+separator nonempty Pat1 "";

@@ -52,4 +52,6 @@ using
 -- The proof of this theorem fails in the step case
 theorem mul-assoc
   forall a b c : Nat.
-    mul a (mul b c) = mul (mul a b) c;
+    mul a (mul b c) = mul (mul a b) c
+using
+  add-S;

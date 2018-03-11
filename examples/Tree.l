@@ -75,15 +75,20 @@ lemma append-sum
 using
   add-assoc;
 
-{- Mising Tree and List theory -}
+lemma append-sum-flip
+  forall xs ys : NatList.
+    listSum (append xs ys) = listSum (append ys xs)
+using
+  append-sum add-comm;
+
+{- Mixing Tree and List theory -}
 flatten : NatTree -> NatList
 flatten t = case t of
     Leaf       -> Nil
   | Fork n l r -> append (flatten l) (append (Cons n Nil) (flatten r));
 
--- This triggers the infinite rewrite cycle bug :(
 theorem flatten-mirror-sum
   forall t : NatTree.
     listSum (flatten t) = listSum (flatten (mirror t))
 using
-  append-sum mirror-sum append-assoc;
+  append-sum append-sum-flip;

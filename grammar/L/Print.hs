@@ -143,7 +143,8 @@ instance Print Alt where
 instance Print Pat where
   prt i e = case e of
     PVar lident -> prPrec i 1 (concatD [prt 0 lident])
+    PConE uident -> prPrec i 1 (concatD [prt 0 uident])
     PCon uident pats -> prPrec i 0 (concatD [prt 0 uident, prt 1 pats])
-  prtList 1 [] = (concatD [])
+  prtList 1 [x] = (concatD [prt 1 x])
   prtList 1 (x:xs) = (concatD [prt 1 x, prt 1 xs])
 

@@ -6,6 +6,7 @@ import qualified Data.Map as M
 import Control.Monad.State
 import Data.Maybe
 
+import L.Print
 import L.Abs
 import qualified L.TAbs as T
 
@@ -115,15 +116,21 @@ instance TypeCheckable Proposition where
 -- Binds variables in the current context
 instance TypeCheckable Pat where
   type Checked Pat = T.Pat
-  typeCheck t p = case p of
+  typeCheck (Just t) p = case p of
     PVar v    -> do
-      Just t <- return t
       introduce v t
       return $ T.PVar t v
+    
+    PConE c -> do
+      (rt, argst) <- lookup constructorTypes c
+      unless (rt == t)
+        (fail $ "Type error, expected type " ++ printTree t ++ " got " ++ printTree c ++ " : " ++ printTree rt)
+      unless (null argst) (fail "Expected more arguments to constructor")
+      return $ T.PCon c []
 
     PCon c ps -> do
       (rt, argst) <- lookup constructorTypes c
-      unless (Just rt == t) (typeError 9)
+      unless (rt == t) (typeError 9)
       unless (length ps == length argst) (typeError 10)
       T.PCon c <$> zipWithM typeCheck (map Just argst) ps 
 

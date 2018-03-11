@@ -22,8 +22,7 @@ import L.TypeCheck
 
 -- These parameters are pretty dumb, but they are good enough
 -- for playing around
-cfg = defaultConfig { cfg_max_cp_depth = 10
-                    , cfg_max_critical_pairs = 10000 }
+cfg = defaultConfig { cfg_max_critical_pairs = 10000 }
 
 main :: IO ()
 main = do
