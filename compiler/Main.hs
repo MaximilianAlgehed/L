@@ -16,6 +16,7 @@ import Twee.Pretty
 import L.ErrM
 import L.Par
 import L.Axiomatisation
+import L.Normalisation
 import L.CoreLanguage
 import L.TypeCheck
 
@@ -30,7 +31,8 @@ main = do
   raw <- readFile f
   corePgm <- case pProgram (myLexer raw) of
     Ok p  -> case runTC $ typeCheck Nothing p of
-      Right p -> return (surfaceToCore p)
+      Right p -> do
+        return (surfaceToCore . normalise $ p)
       Left e  -> error e
     Bad e -> error e
 

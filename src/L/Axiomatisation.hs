@@ -227,7 +227,7 @@ splitProposition p = case p of
 
   Equal lhs rhs -> ([], (lhs, rhs))
 
-  Boolean _        -> error "Boolean"
+  Boolean e     -> ([], (e, FApp (Name "True") []))
 
 -- Generates an induction schema where the first variable in the proposition 
 -- to be proven is of type `t` with definition `def`

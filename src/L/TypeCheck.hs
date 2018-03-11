@@ -62,11 +62,6 @@ introduce v t = do
 typeError :: Int -> TC a
 typeError i = fail $ "Type error " ++ show i
 
-split :: Type -> (Type, [Type])
-split (MonoType ui) = (MonoType ui, [])
-split (FunType a r) =
-  let (res, as) = split r in (res, a : as)
-
 class TypeCheckable a where
   type Checked a :: *
   typeCheck :: Maybe Type -> a -> TC (Checked a)
@@ -84,13 +79,13 @@ instance TypeCheckable Decl where
 
     DFun f t f' xs e -> do
       unless (f == f') (typeError 6)
-      unless (length xs <= (length . snd . split $ t)) (typeError 7)
-      introduceF f (split t)
+      unless (length xs <= (length . snd . T.split $ t)) (typeError 7)
+      introduceF f (T.split t)
       push
-      zipWithM_ introduce xs (snd (split t))
+      zipWithM_ introduce xs (snd (T.split t))
       (t', e') <- typeCheck Nothing e
       pop
-      unless (t' == fst (split t)) (typeError 8)
+      unless (t' == fst (T.split t)) (typeError 8)
       return $ T.DFun f t xs e'
 
     DThm t -> T.DThm <$> typeCheck Nothing t
