@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module L.TypeCheck where
 
+import Twee.Term hiding (lookup)
 import Prelude hiding (lookup)
 import qualified Data.Map as M
 import Control.Monad.State
@@ -161,6 +162,8 @@ instance TypeCheckable Expr where
       return $ (rt, T.ECApp rt c (map snd at'))
 
     ECase e as -> do
+      -- Check if patterns overlap
+      unless (overlapsCheck [p | A p _ <- as] ) (fail "Overlapping patterns")
       (et, e') <- typeCheck Nothing e
       as' <- sequence
         [ do push
@@ -171,3 +174,23 @@ instance TypeCheckable Expr where
         | A p e <- as ]
       unless (all ((==fst (head as')) . fst) as') (typeError 16)
       return (fst (head as'), T.ECase (fst (head as')) e' (map snd as'))
+
+overlapsCheck :: [Pat] -> Bool
+overlapsCheck ps = all (\p -> [()] == [ () | Just _ <- match (toTerm p) . toTerm <$> ps]) ps
+
+toTerm :: Pat -> Term String
+toTerm p = evalState (go p) (M.empty, 0)
+  where
+    go :: Pat -> State (M.Map LIdent (Term String), Int) (Term String)
+    go p = case p of
+      PVar id -> do
+        (m, idx) <- get
+        case M.lookup id m of
+          Nothing -> do
+            let t = build . var . V $ idx
+            put (M.insert id t m, idx + 1)
+            return t
+          Just t -> return t
+      PConE (UIdent c) -> do
+        return $ build (con (fun c))
+      PCon (UIdent c) ps -> build . app (fun c) <$> mapM go ps
