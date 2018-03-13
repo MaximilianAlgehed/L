@@ -57,7 +57,7 @@ normaliseDecl d = case d of
     let (rt, ts) = split t
     push
     (xs, body) <- if length ts > length xs then do
-                    newVars <- replicateM (length ts - length xs) (next f)
+                    newVars <- replicateM (length ts - length xs) (next (LIdent "_"))
                     let newVarsTypes = reverse $ take (length newVars) (reverse ts)
                     zipWithM_ introduce (xs ++ newVars) ts
                     return (xs ++ newVars, app rt body $ zipWith EVar newVarsTypes newVars)

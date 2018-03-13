@@ -43,7 +43,6 @@ data Pattern = ConstructorPattern Name [Pattern]
 
 -- Expressions
 data Expr = FApp Name [Expr]
-          | PtrApp Name [Expr]
           | Var  Name
           deriving (Ord, Eq, Show)
 

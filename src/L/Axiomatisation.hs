@@ -87,17 +87,17 @@ getThm n = do
 getF :: Name -> AM F
 getF n = do
   nm <- gets nameMap
-  maybe (throwError "Unkown function symbol error") return (M.lookup n nm)
+  maybe (throwError "Unknown function symbol error") return (M.lookup n nm)
 
 getT :: Name -> AM (Type, [Type])
 getT n = do
   nt <- gets nameTypes
-  maybe (throwError "Unkown type error") return (M.lookup n nt)
+  maybe (throwError "Unknown type error") return (M.lookup n nt)
 
 getDef :: Type -> AM [(Name, [Type])]
 getDef t = do
   defs <- gets definitions
-  maybe (throwError "Unkown definition error") return (M.lookup t defs)
+  maybe (throwError "Unknown definition error") return (M.lookup t defs)
 
 getTRes :: Name -> AM Type
 getTRes n = fst <$> getT n

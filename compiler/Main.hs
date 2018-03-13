@@ -43,6 +43,7 @@ main = do
     Left err -> error err
     Right ps -> return ps
 
+  -- TODO: Factor out
   putStrLn $ "\n== Trying to prove \"" ++ problemName ++ "\" ==\n"
   sequence_ [ do putStrLn "-- Base Theory --"
                  mapM_ prettyPrint (given p)
