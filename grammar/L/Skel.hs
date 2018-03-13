@@ -45,8 +45,7 @@ transExpr :: Expr -> Result
 transExpr x = case x of
   EVar lident -> failure x
   ECon uident -> failure x
-  EFApp lident exprs -> failure x
-  ECApp uident exprs -> failure x
+  EApp expr exprs -> failure x
   ECase expr alts -> failure x
 transAlt :: Alt -> Result
 transAlt x = case x of

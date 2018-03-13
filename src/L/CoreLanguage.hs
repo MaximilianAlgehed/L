@@ -43,6 +43,7 @@ data Pattern = ConstructorPattern Name [Pattern]
 
 -- Expressions
 data Expr = FApp Name [Expr]
+          | PtrApp Name [Expr]
           | Var  Name
           deriving (Ord, Eq, Show)
 
@@ -109,7 +110,9 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     expr :: A.Expr -> Expr
     expr e = case e of
-      A.EVar _ (A.LIdent x)     -> Var (Name x)
-      A.ECon _ (A.UIdent c)     -> FApp (Name c) []
-      A.EFApp _ (A.LIdent f) es -> FApp (Name f) (map expr es)
-      A.ECApp _ (A.UIdent f) es -> FApp (Name f) (map expr es)
+      A.EVar _ (A.LIdent x) -> Var (Name x)
+      A.ECon _ (A.UIdent c) -> FApp (Name c) []
+      A.EApp _ fun es       -> FApp (name fun) (map expr es)
+      where
+        name (A.EVar _ (A.LIdent n)) = Name n
+        name (A.ECon _ (A.UIdent n)) = Name n

@@ -2,6 +2,7 @@ module L.Normalisation where
 
 import Control.Monad.State
 import qualified Data.Map as M
+import Debug.Trace
 
 import L.Abs (Type(..), LIdent(..), UIdent(..))
 import L.TAbs
@@ -55,54 +56,64 @@ normaliseDecl d = case d of
   DFun f t xs body -> do
     let (rt, ts) = split t
     push
-    zipWithM_ introduce xs ts
+    (xs, body) <- if length ts > length xs then do
+                    newVars <- replicateM (length ts - length xs) (next f)
+                    let newVarsTypes = reverse $ take (length newVars) (reverse ts)
+                    zipWithM_ introduce (xs ++ newVars) ts
+                    return (xs ++ newVars, app rt body $ zipWith EVar newVarsTypes newVars)
+                  else do
+                    zipWithM_ introduce xs ts
+                    return (xs, body)
     (e, ds) <- normaliseFunctionBody f body
     pop
     return $ DFun f t xs e : ds
+
   d -> return [d]
 
 normaliseFunctionBody :: LIdent -> Expr -> NM (Expr, [Decl])
 normaliseFunctionBody f e = case e of
-  ECase t ec as -> case ec of
+    ECase t ec as -> case ec of
 
-    EVar _ _ -> do
-      as_ds     <- mapM (normaliseAlternative f) as
-      return $ (ECase t ec (map fst as_ds), concatMap snd as_ds)
+      EVar _ _ -> do
+        as_ds     <- mapM (normaliseAlternative f) as
+        return $ (ECase t ec (map fst as_ds), concatMap snd as_ds)
 
-    _ -> do
-      nf       <- next f
-      newVar   <- next (LIdent "_")
-      ctx      <- getContextList
-      (e', ds) <- normaliseExpr f (EFApp t nf (map (uncurry (flip EVar)) ctx ++ [ec]))
-      let vt   = exprType ec
-      let t'   = foldr FunType t (map snd ctx ++ [vt])
-      ds'      <- normaliseDecl $
-        DFun nf t' (map fst ctx ++ [newVar]) (ECase t (EVar vt newVar) as)
-      return (e', ds ++ ds')
+      _ -> do
+        nf       <- next f
+        newVar   <- next (LIdent "_")
+        ctx      <- getContextList
+        let vt   = exprType ec
+        let t'   = foldr FunType t (map snd ctx ++ [vt])
+        (e', ds) <- normaliseExpr f (EApp t (EVar t' nf) (map (uncurry (flip EVar)) ctx ++ [ec]))
+        ds'      <- normaliseDecl $
+          DFun nf t' (map fst ctx ++ [newVar]) (ECase t (EVar vt newVar) as)
+        return (e', ds ++ ds')
 
-  _ -> normaliseExpr f e
+    _ -> normaliseExpr f e
 
 normaliseExpr :: LIdent -> Expr -> NM (Expr, [Decl])
 normaliseExpr f e = case e of
-  EFApp t f' xs  -> do
-    es_ds <- mapM (normaliseExpr f) xs
-    return $ (EFApp t f' (map fst es_ds), concatMap snd es_ds)
+    EApp t fun xs  -> do
+      fun_dsF <- normaliseExpr f fun
+      es_ds <- mapM (normaliseExpr f) xs
+      return $ (app t (fst fun_dsF) (map fst es_ds), snd fun_dsF ++ concatMap snd es_ds)
 
-  ECApp t c xs  -> do
-    es_ds <- mapM (normaliseExpr f) xs
-    return $ (ECApp t c (map fst es_ds), concatMap snd es_ds)
+    ECase t ec as -> do
+      nf       <- next f
+      newVar   <- next (LIdent "_")
+      ctx      <- getContextList
+      let t'   = foldr FunType t (map snd ctx)
+      ds       <- normaliseDecl $
+        DFun nf t' (map fst ctx) e
+      return (app t (EVar t' nf) (map (uncurry (flip EVar)) ctx), ds)
 
-  ECase t ec as -> do
-    nf       <- next f
-    newVar   <- next (LIdent "_")
-    ctx      <- getContextList
-    let vt   = exprType ec
-    let t'   = foldr FunType t (map snd ctx ++ [vt])
-    ds       <- normaliseDecl $
-      DFun nf t' (map fst ctx) e
-    return (EFApp t nf (map (uncurry (flip EVar)) ctx), ds)
+    _ -> return (e, [])
 
-  _ -> return (e, [])
+app :: Type -> Expr -> [Expr] -> Expr
+app t f xs = case f of
+  EApp _ f es   -> EApp t f (es ++ xs)
+  ECase _ ec as -> ECase t ec [ A p (app t e xs) | A p e <- as ]
+  _             -> EApp t f xs
 
 normaliseAlternative :: LIdent -> Alt -> NM (Alt, [Decl])
 normaliseAlternative f a = case a of

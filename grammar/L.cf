@@ -41,8 +41,7 @@ coercions Type 1;
 -- Expressions
 EVar.  Expr2 ::= LIdent;
 ECon.  Expr2 ::= UIdent;
-EFApp. Expr1 ::= LIdent [Expr2];
-ECApp. Expr1 ::= UIdent [Expr2];
+EApp.  Expr1 ::= Expr2 [Expr2];
 ECase. Expr  ::= "case" Expr "of" [Alt];
 
 coercions Expr 2;

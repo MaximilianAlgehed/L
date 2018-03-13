@@ -1,4 +1,3 @@
-
 data Nat = Z | S Nat;
 
 add : Nat -> Nat -> Nat

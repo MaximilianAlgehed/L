@@ -15,6 +15,9 @@ import qualified Twee.KBO
 
 import L.CoreLanguage
 
+hideTypeTags :: Bool
+hideTypeTags = False
+
 data FI = F { arityF :: Int
             , nameF  :: Name
             , invis  :: Bool
@@ -135,7 +138,7 @@ freshSkolem t = do
   return . typeTag t . build . con . skolem . V $ idx
 
 typeTag :: Type -> Term F -> Term F
-typeTag t tm = apply (Function (T 1 t True)) [tm]
+typeTag t tm = apply (Function (T 1 t hideTypeTags)) [tm]
 
 exprToTerm :: Expr -> AM (Term F)
 exprToTerm e = case e of

@@ -129,8 +129,7 @@ instance Print Expr where
   prt i e = case e of
     EVar lident -> prPrec i 2 (concatD [prt 0 lident])
     ECon uident -> prPrec i 2 (concatD [prt 0 uident])
-    EFApp lident exprs -> prPrec i 1 (concatD [prt 0 lident, prt 2 exprs])
-    ECApp uident exprs -> prPrec i 1 (concatD [prt 0 uident, prt 2 exprs])
+    EApp expr exprs -> prPrec i 1 (concatD [prt 2 expr, prt 2 exprs])
     ECase expr alts -> prPrec i 0 (concatD [doc (showString "case"), prt 0 expr, doc (showString "of"), prt 0 alts])
   prtList 2 [x] = (concatD [prt 2 x])
   prtList 2 (x:xs) = (concatD [prt 2 x, prt 2 xs])

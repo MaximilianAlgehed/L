@@ -26,8 +26,7 @@ data Proposition
 data Expr
     = EVar { exprType :: Type, exprVar :: LIdent }
     | ECon { exprType :: Type, exprCon :: UIdent }
-    | EFApp { exprType :: Type, exprFun :: LIdent, exprArgs :: [Expr] }
-    | ECApp { exprType :: Type, exprCon :: UIdent, exprArgs :: [Expr] }
+    | EApp { exprType :: Type, exprFun :: Expr, exprArgs :: [Expr] }
     | ECase { exprType :: Type, exprCaseOn :: Expr, exprAlts ::  [Alt] }
   deriving (Eq, Ord, Show, Read)
 
@@ -41,3 +40,8 @@ split :: Type -> (Type, [Type])
 split (MonoType ui) = (MonoType ui, [])
 split (FunType a r) =
   let (res, as) = split r in (res, a : as)
+
+partialType :: Expr -> Bool
+partialType e = case exprType e of
+  FunType _ _ -> True
+  _           -> False

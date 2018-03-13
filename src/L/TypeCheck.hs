@@ -11,28 +11,20 @@ import L.Print
 import L.Abs
 import qualified L.TAbs as T
 
-data TCState = TCS { constructorTypes :: M.Map UIdent (Type, [Type])
-                   , functionTypes    :: M.Map LIdent (Type, [Type])
+data TCState = TCS { constructorTypes :: M.Map UIdent Type
                    , variableTypes    :: [M.Map LIdent Type] }
 
 type TC a = StateT TCState (Either String) a
 
 runTC :: TC a -> Either String a
-runTC tc = evalStateT tc (TCS M.empty M.empty [])
+runTC tc = evalStateT tc (TCS M.empty [])
 
-introduceC :: UIdent -> (Type, [Type]) -> TC ()
+introduceC :: UIdent -> Type -> TC ()
 introduceC c t = do
   m <- gets constructorTypes
   case M.lookup c m of
     Nothing -> modify $ \s -> s { constructorTypes = M.insert c t m }
     Just _  -> typeError 0
-
-introduceF :: LIdent -> (Type, [Type]) -> TC ()
-introduceF f t = do
-  m <- gets functionTypes
-  case M.lookup f m of
-    Nothing -> modify $ \s -> s { functionTypes = M.insert f t m }
-    Just _  -> typeError 1
 
 lookup :: (Ord a, Show a) => (TCState -> M.Map a t) -> a -> TC t
 lookup f v = do
@@ -43,7 +35,7 @@ lookupVar :: LIdent -> TC Type
 lookupVar v = do
   ctx <- gets variableTypes
   case [ t | Just t <- M.lookup v <$> ctx ] of
-    []    -> typeError 3
+    []    -> fail $ "Unbound variable: " ++ printTree v
     (t:_) -> return t
 
 push :: TC ()
@@ -70,19 +62,18 @@ class TypeCheckable a where
 
 instance TypeCheckable Program where
   type Checked Program = T.Program
-  typeCheck Nothing (P ds) = T.P <$> mapM (typeCheck Nothing) ds
+  typeCheck Nothing (P ds) = T.P <$> (push >> sequence [ introduce f t | DFun f t _ _ _ <- ds] >> mapM (typeCheck Nothing) ds)
 
 instance TypeCheckable Decl where
   type Checked Decl = T.Decl
   typeCheck Nothing d = case d of
     DData n cs -> do
-      sequence_ [ introduceC c (MonoType n, ts) | C c ts <- cs ]
+      sequence_ [ introduceC c (foldr FunType (MonoType n) ts) | C c ts <- cs ]
       return $ T.DData n cs
 
     DFun f t f' xs e -> do
       unless (f == f') (typeError 6)
       unless (length xs <= (length . snd . T.split $ t)) (typeError 7)
-      introduceF f (T.split t)
       push
       zipWithM_ introduce xs (snd (T.split t))
       (t', e') <- typeCheck Nothing e
@@ -123,14 +114,14 @@ instance TypeCheckable Pat where
       return $ T.PVar t v
     
     PConE c -> do
-      (rt, argst) <- lookup constructorTypes c
+      (rt, argst) <- T.split <$> lookup constructorTypes c
       unless (rt == t)
         (fail $ "Type error, expected type " ++ printTree t ++ " got " ++ printTree c ++ " : " ++ printTree rt)
       unless (null argst) (fail "Expected more arguments to constructor")
       return $ T.PCon c []
 
     PCon c ps -> do
-      (rt, argst) <- lookup constructorTypes c
+      (rt, argst) <- T.split <$> lookup constructorTypes c
       unless (rt == t) (typeError 9)
       unless (length ps == length argst) (typeError 10)
       T.PCon c <$> zipWithM typeCheck (map Just argst) ps 
@@ -143,23 +134,17 @@ instance TypeCheckable Expr where
       return (vt, T.EVar vt v)
 
     ECon c     -> do
-      (rt, argst) <- lookup constructorTypes c
-      unless (null argst) (typeError 11)
-      return $ (rt, T.ECon rt c)
+      t <- lookup constructorTypes c
+      return $ (t, T.ECon t c)
 
-    EFApp f es -> do
-      (rt, argst) <- lookup functionTypes f
-      unless (length es == length argst) (typeError 12)
+    EApp f es -> do
+      (t, f') <- typeCheck Nothing f
+      let (rt, argst) = T.split t
+      unless (length es <= length argst) (typeError 12)
       at' <- mapM (typeCheck Nothing) es
-      unless (map fst at' == argst) (typeError 13)
-      return $ (rt, T.EFApp rt f (map snd at'))
-
-    ECApp c es -> do
-      (rt, argst) <- lookup constructorTypes c
-      unless (length es == length argst) (typeError 14)
-      at' <- mapM (typeCheck Nothing) es
-      unless (map fst at' == argst) (typeError 15)
-      return $ (rt, T.ECApp rt c (map snd at'))
+      unless (and (zipWith (==) (map fst at') argst)) (typeError 13)
+      let t' = foldr FunType rt (drop (length es) argst)
+      return $ (t', T.EApp t' f' (map snd at'))
 
     ECase e as -> do
       -- Check if patterns overlap
