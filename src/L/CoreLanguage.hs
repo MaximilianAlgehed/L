@@ -13,7 +13,8 @@ instance Show Name where
 type Program = [Decl]
 
 -- Types
-data Type = MonoType { typeName :: Name } deriving (Ord, Eq)
+data Type = MonoType { typeName :: Name }
+          deriving (Ord, Eq)
 
 instance Show Type where
   show = show . typeName

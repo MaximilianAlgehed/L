@@ -16,7 +16,7 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = False
+hideTypeTags = True
 
 data FI = F { arityF :: Int
             , nameF  :: Name
@@ -86,6 +86,10 @@ getThm n = do
 
 getF :: Name -> AM F
 getF n = do
+  -- Check that the function we are looking up isn't locally bound
+  vm <- gets variableMap
+  maybe (return ()) (\_ -> throwError "Function variables are not yet supported") (M.lookup n vm)
+  -- Lookup the function symbol
   nm <- gets nameMap
   maybe (throwError "Unknown function symbol error") return (M.lookup n nm)
 
