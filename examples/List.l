@@ -24,6 +24,14 @@ theorem double-add
 using
   add-S-S;
 
+theorem add-comm
+  forall n m : Nat. add n m = add m n
+using
+  add-S add-Z;
+
+lemma add-Z
+  forall n : Nat. add n Z = n;
+
 data NatList = Nil | Cons Nat NatList;
 
 append : NatList -> NatList -> NatList
@@ -93,3 +101,8 @@ theorem length-double
   forall xs : NatList. length (append xs xs) = double (length xs)
 using
   append-add-length double-add;
+
+lemma length-reverse
+  forall xs : NatList. length (reverse xs) = length xs
+using
+  append-add-length add-comm;
