@@ -106,3 +106,27 @@ lemma length-reverse
   forall xs : NatList. length (reverse xs) = length xs
 using
   append-add-length add-comm;
+
+drop : Nat -> NatList -> NatList
+drop n xs = case n of
+    Z   -> xs
+  | S n ->
+    (case xs of
+        Nil       -> Nil
+      | Cons x xs -> drop n xs);
+
+lemma drop-nil
+  forall n : Nat. drop n Nil = Nil;
+
+lemma drop-cons
+  forall n m : Nat. forall xs : NatList. drop (S n) (Cons m xs) = drop n xs;
+
+lemma drop-S
+  forall xs : NatList. forall m n : Nat. drop n (drop (S m) xs) = drop (S n) (drop m xs)
+using
+  drop-nil drop-cons;
+
+theorem drop-add
+  forall m n : Nat. forall xs : NatList. drop n (drop m xs) = drop (add n m) xs
+using
+  add-Z add-S drop-S;
