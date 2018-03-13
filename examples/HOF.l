@@ -6,6 +6,9 @@
 data Nat = Z | S Nat;
 data NatList = Nil | Cons Nat NatList;
 
+-- You get different error messages depending
+-- on if you use `f` or `id` for the name
+-- of this function due to lazyness
 map : (Nat -> Nat) -> NatList -> NatList
 map f xs = case xs of
     Nil       -> Nil
