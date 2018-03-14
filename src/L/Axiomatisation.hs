@@ -45,7 +45,7 @@ instance Arity FI where
 
 instance Pretty FI where
   pPrint t@(T _ _ _)     = text . ("tt" ++) . show . typ   $ t
-  pPrint (Apply _ _)     = text "@"
+  pPrint (Apply _ _)     = text "$"
   pPrint f@(SFPtr _ _ _) = text . ("*" ++) . show . nameF $ f
   pPrint f               = text . ("'" ++) . show . nameF $ f
 
