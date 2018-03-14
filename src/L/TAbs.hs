@@ -25,6 +25,7 @@ data Expr
     | ECon { exprType :: Type, exprCon :: UIdent }
     | EApp { exprType :: Type, exprFun :: Expr, exprArgs :: [Expr] }
     | ECase { exprType :: Type, exprCaseOn :: Expr, exprAlts ::  [Alt] }
+    | ELam { exprType :: Type, exprAbsVar :: LIdent, exprBody :: Expr }
   deriving (Eq, Ord, Show, Read)
 
 data Alt = A Pat Expr

@@ -160,6 +160,13 @@ instance TypeCheckable Expr where
       unless (all ((==fst (head as')) . fst) as') (typeError 16)
       return (fst (head as'), T.ECase (fst (head as')) e' (map snd as'))
 
+    ELam x t e -> do
+      push
+      introduce x t
+      (et, e') <- typeCheck Nothing e
+      pop
+      return (FunType t et, T.ELam (FunType t et) x e')
+
 overlapsCheck :: [Pat] -> Bool
 overlapsCheck ps = all (\p -> [()] == [ () | Just _ <- match (toTerm p) . toTerm <$> ps]) ps
 

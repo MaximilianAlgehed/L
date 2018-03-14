@@ -42,6 +42,9 @@ coercions Type 1;
 EVar.  Expr2 ::= LIdent;
 ECon.  Expr2 ::= UIdent;
 EApp.  Expr1 ::= Expr2 [Expr2];
+-- Lazy choice of syntax to avoid having to
+-- do unification during type inference
+ELam.  Expr  ::= "\\" LIdent ":" Type "." Expr;
 ECase. Expr  ::= "case" Expr "of" [Alt];
 
 coercions Expr 2;

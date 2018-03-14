@@ -2,6 +2,7 @@ module L.Normalisation where
 
 import Control.Monad.State
 import qualified Data.Map as M
+import Data.List
 import Debug.Trace
 
 import L.Abs (Type(..), LIdent(..), UIdent(..))
@@ -43,13 +44,16 @@ introduce v t = do
       Nothing -> modify $ \s -> s { variableTypes = M.insert v t m : ms }
       Just _  -> fail "Error"
 
-getContextList :: NM [(LIdent, Type)]
-getContextList = do
-  ctx <- gets variableTypes
-  return . M.toList $ foldr M.union M.empty ctx
+isDefinedFunction :: LIdent -> NM Bool
+isDefinedFunction f = do
+  vt <- gets variableTypes
+  return $ M.member f (last vt) && not (any (M.member f) (init vt))
 
 normalise :: Program -> Program
-normalise (P pgm) = P . concat . runNorm . mapM normaliseDecl $ pgm
+normalise (P pgm) = runNorm $ do
+  push
+  sequence_ [introduce f t | DFun f t _ _ <- pgm]
+  P . concat <$> mapM normaliseDecl pgm
 
 normaliseDecl :: Decl -> NM [Decl]
 normaliseDecl d = case d of
@@ -100,7 +104,7 @@ normaliseProposition n p = case p of
     return (PExpr e, ds)
 
 normaliseFunctionBody :: LIdent -> Expr -> NM (Expr, [Decl])
-normaliseFunctionBody f e = case e of
+normaliseFunctionBody f inputExpr = case inputExpr of
     ECase t ec as -> case ec of
 
       EVar _ _ -> do
@@ -110,7 +114,7 @@ normaliseFunctionBody f e = case e of
       _ -> do
         nf       <- next f
         newVar   <- next (LIdent "_")
-        ctx      <- getContextList
+        ctx      <- free inputExpr
         let vt   = exprType ec
         let t'   = foldr FunType t (map snd ctx ++ [vt])
         (e', ds) <- normaliseExpr f (EApp t (EVar t' nf) (map (uncurry (flip EVar)) ctx ++ [ec]))
@@ -118,10 +122,10 @@ normaliseFunctionBody f e = case e of
           DFun nf t' (map fst ctx ++ [newVar]) (ECase t (EVar vt newVar) as)
         return (e', ds ++ ds')
 
-    _ -> normaliseExpr f e
+    _ -> normaliseExpr f inputExpr
 
 normaliseExpr :: LIdent -> Expr -> NM (Expr, [Decl])
-normaliseExpr f e = case e of
+normaliseExpr f inputExpr = case inputExpr of
     EApp t fun xs  -> do
       fun_dsF <- normaliseExpr f fun
       es_ds <- mapM (normaliseExpr f) xs
@@ -130,13 +134,41 @@ normaliseExpr f e = case e of
     ECase t ec as -> do
       nf       <- next f
       newVar   <- next (LIdent "_")
-      ctx      <- getContextList
+      ctx      <- free inputExpr
       let t'   = foldr FunType t (map snd ctx)
       ds       <- normaliseDecl $
-        DFun nf t' (map fst ctx) e
+        DFun nf t' (map fst ctx) inputExpr
       return (app t (EVar t' nf) (map (uncurry (flip EVar)) ctx), ds)
 
-    _ -> return (e, [])
+    ELam t x e -> do
+      nf   <- next f
+      ctx  <- free inputExpr
+      traceM (show ctx)
+      let t'  = foldr FunType t (map snd ctx)
+      ds   <- normaliseDecl $
+        DFun nf t' (map fst ctx ++ [x]) e
+      return (app t (EVar t' nf) (map (uncurry (flip EVar)) ctx), ds)
+
+    _ -> return (inputExpr, [])
+
+free :: Expr -> NM [(LIdent, Type)]
+free e = case e of
+  EVar t v -> do
+    def <- isDefinedFunction v
+    if def then return [] else return [(v, t)]
+
+  ECon t c -> return []
+
+  EApp t f es -> union <$> free f <*> (foldr union [] <$> mapM free es)
+
+  ECase t ec as -> union <$> free ec <*> (foldr union [] <$> sequence [ (\\ vars p) <$> free e | A p e <- as ])
+
+  ELam t v e -> filter ((/= v) . fst) <$> free e
+
+vars :: Pat -> [(LIdent, Type)]
+vars p = case p of
+  PVar t v -> [(v, t)]
+  PCon _ ps -> foldr union [] (vars <$> ps)
 
 app :: Type -> Expr -> [Expr] -> Expr
 app t f xs = case f of

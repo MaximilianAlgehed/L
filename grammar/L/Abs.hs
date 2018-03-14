@@ -36,7 +36,11 @@ data Type = MonoType UIdent | FunType Type Type
   deriving (Eq, Ord, Show, Read)
 
 data Expr
-    = EVar LIdent | ECon UIdent | EApp Expr [Expr] | ECase Expr [Alt]
+    = EVar LIdent
+    | ECon UIdent
+    | EApp Expr [Expr]
+    | ELam LIdent Type Expr
+    | ECase Expr [Alt]
   deriving (Eq, Ord, Show, Read)
 
 data Alt = A Pat Expr

@@ -18,7 +18,7 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = True 
+hideTypeTags = True
 
 hideApply :: Bool
 hideApply = False 
@@ -33,7 +33,7 @@ data FI = F { arityF :: Int
         | SFPtr { arityF :: Int
                 , invis :: Bool
                 , nameF :: Name }
-        | FPtr (Term F)
+        | FPtr (Term F) Type
         | Apply { arityF :: Int, invis :: Bool }
         deriving (Ord, Eq, Show)
 
@@ -52,6 +52,7 @@ instance Pretty FI where
 instance EqualsBonus FI where
 
 instance PrettyTerm FI where
+  termStyle (Apply _ iv) = if iv then invisible else infixStyle 0
   termStyle f = if invis f then invisible else curried
 
 instance Ordered (Extended FI) where
@@ -60,11 +61,14 @@ instance Ordered (Extended FI) where
 
 type F = Extended FI
 
-apply :: F -> [Term F] -> Term F
-apply f ts = case f of
+apps :: (Term F, Type) -> [Term F] -> Term F
+apps f ts = fst $ foldl (\(term, FunctionType _ typ) arg -> (typeTag typ $ build (app (fun (Function (Apply 2 hideApply))) [term, arg]), typ)) f ts
+
+apply :: Type -> F -> [Term F] -> Term F
+apply resT f ts = case f of
   -- If it's a function pointer we explicitly apply it
-  Function (FPtr t) -> build (app (fun (Function (Apply (length ts + 1) hideApply))) (t:ts))
-  _ -> build (app (fun f) ts)
+  Function (FPtr t typ) -> apps (t, typ) ts
+  _ -> typeTag resT (build (app (fun f) ts))
 
 data AState = S { nameMap       :: M.Map Name F
                 , nameTypes     :: M.Map Name (Type, [Type])
@@ -104,9 +108,10 @@ getF :: Name -> AM F
 getF n = do
   -- Check if the function we are looking for is locally bound
   vm <- gets variableMap
+  vt <- gets variableTypes
   case M.lookup n vm of
     -- Return a function pointer
-    Just t -> return $ Function (FPtr t)
+    Just t -> return $ Function (FPtr t (fromJust (M.lookup n vt)))
     Nothing -> do
       -- Lookup the function symbol
       nm <- gets nameMap
@@ -165,7 +170,7 @@ freshSkolem t = do
   return . typeTag t . build . con . skolem . V $ idx
 
 typeTag :: Type -> Term F -> Term F
-typeTag t tm = apply (Function (T 1 t hideTypeTags)) [tm]
+typeTag t tm = build (app (fun (Function (T 1 t hideTypeTags))) [tm])
 
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of
@@ -173,7 +178,14 @@ exprToTerm e = case e of
     f <- getF n
     (tres, targs) <- getT n
     let t = foldr FunctionType tres (drop (length es) targs)
-    typeTag t . apply f <$> mapM exprToTerm es
+    es <- mapM exprToTerm es
+    if length es == length targs then
+      return $ apply tres f es
+    else
+      let typ = foldr FunctionType tres targs in
+      case f of
+        Function (FPtr f typ) -> return $ apps (f, typ) es
+        _                     -> return $ apps (typeTag typ (specific n), typ) es
 
   Var n -> getV n
 
@@ -182,7 +194,7 @@ patternToTerm t p = case p of
   ConstructorPattern n ps -> do
     f <- getF n
     (t, ts) <- getT n
-    typeTag t . apply f <$> zipWithM patternToTerm ts ps
+    apply t f <$> zipWithM patternToTerm ts ps
 
   VariablePattern n -> do
     introduceV n t
@@ -205,7 +217,7 @@ functionToEquations d = case d of
                      -- Replace the occurance of `x` with `pat` in the list of arguments
                      let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
                      e       <- exprToTerm expr
-                     return $ typeTag t (apply f xs') :=: e
+                     return $ apply t f xs' :=: e
                 | (pat, expr) <- ps ]
   
             E e       -> do
@@ -216,13 +228,14 @@ functionToEquations d = case d of
               f  <- getF f
               xs <- mapM getV xs
               e  <- exprToTerm e
-              return [typeTag t (apply f xs) :=: e]
+              return [apply t f xs :=: e]
     resetV
     (t, ts) <- getT f
     sequence [ introduceV x t | (x, t) <- zip xs ts ]
     f'      <- getF f 
     xs_     <- mapM getV xs
-    let eq = build (app (fun (Function (Apply (length ts + 1) hideApply))) (typeTag (foldr FunctionType t ts) (specific f) : xs_)) :=: apply f' xs_
+    let typ = foldr FunctionType t ts
+    let eq = apps (typeTag typ (specific f), typ) xs_ :=: apply t f' xs_
     return $ eq:es
 
   _ -> throwError "Argument to functionToEquations is not a function declaration"
@@ -296,7 +309,7 @@ structuralInduction t def prop = do
         let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) goal | sk <- skolems ]
         -- Get the constructor term
         c <- getF cn
-        let term = typeTag t $ apply c vars
+        let term = apply t c vars
         return $ Problem { goal = (substEq (fromJust $ T.listToSubst [(V idx, term)]) goal)
                          , hypotheses = ihs
                          , given = thy, lemmas = [] }
