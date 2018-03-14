@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 module L.Axiomatisation where
 
+import GHC.Stack
+
 import Control.Monad.State
 import Control.Monad.Except
 import qualified Data.Map as M
@@ -16,7 +18,10 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = True
+hideTypeTags = False
+
+hideApply :: Bool
+hideApply = False 
 
 data FI = F { arityF :: Int
             , nameF  :: Name
@@ -25,6 +30,11 @@ data FI = F { arityF :: Int
         | T { arityF :: Int
             , typ    :: Type
             , invis  :: Bool }
+        | SFPtr { arityF :: Int
+                , invis :: Bool
+                , nameF :: Name }
+        | FPtr (Term F)
+        | Apply { arityF :: Int, invis :: Bool }
         deriving (Ord, Eq, Show)
 
 instance Sized FI where
@@ -34,8 +44,10 @@ instance Arity FI where
   arity = arityF
 
 instance Pretty FI where
-  pPrint f@(F _ _ _)= text . ("'" ++) . show . nameF $ f
-  pPrint t@(T _ _ _)= text . ("tt" ++ ) . show . typ   $ t
+  pPrint t@(T _ _ _)     = text . ("tt" ++) . show . typ   $ t
+  pPrint (Apply _ _)     = text "@"
+  pPrint f@(SFPtr _ _ _) = text . ("*" ++) . show . nameF $ f
+  pPrint f               = text . ("'" ++) . show . nameF $ f
 
 instance EqualsBonus FI where
 
@@ -49,21 +61,25 @@ instance Ordered (Extended FI) where
 type F = Extended FI
 
 apply :: F -> [Term F] -> Term F
-apply f ts = build (app (fun f) ts)
+apply f ts = case f of
+  -- If it's a function pointer we explicitly apply it
+  Function (FPtr t) -> build (app (fun (Function (Apply (length ts + 1) hideApply))) (t:ts))
+  _ -> build (app (fun f) ts)
 
-data AState = S { nameMap     :: M.Map Name F
-                , nameTypes   :: M.Map Name (Type, [Type])
-                , variableMap :: M.Map Name (Term F) 
-                , definitions :: M.Map Type [(Name, [Type])]
-                , theorems    :: M.Map Name Proposition
-                , nextVarId   :: Int
-                , theory      :: [Equation F]
+data AState = S { nameMap       :: M.Map Name F
+                , nameTypes     :: M.Map Name (Type, [Type])
+                , variableMap   :: M.Map Name (Term F) 
+                , variableTypes :: M.Map Name Type
+                , definitions   :: M.Map Type [(Name, [Type])]
+                , theorems      :: M.Map Name Proposition
+                , nextVarId     :: Int
+                , theory        :: [Equation F]
                 }
 
 type AM a = StateT AState (Either String) a
 
 runAM :: AM a -> Either String a
-runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty 0 [])
+runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty 0 [])
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
@@ -86,50 +102,57 @@ getThm n = do
 
 getF :: Name -> AM F
 getF n = do
-  -- Check that the function we are looking up isn't locally bound
+  -- Check if the function we are looking for is locally bound
   vm <- gets variableMap
-  maybe (return ()) (\_ -> throwError "Function variables are not yet supported") (M.lookup n vm)
-  -- Lookup the function symbol
-  nm <- gets nameMap
-  maybe (throwError "Unknown function symbol error") return (M.lookup n nm)
+  case M.lookup n vm of
+    -- Return a function pointer
+    Just t -> return $ Function (FPtr t)
+    Nothing -> do
+      -- Lookup the function symbol
+      nm <- gets nameMap
+      maybe (throwError "Unknown function symbol error") return (M.lookup n nm)
 
-getT :: Name -> AM (Type, [Type])
+getT :: HasCallStack => Name -> AM (Type, [Type])
 getT n = do
-  nt <- gets nameTypes
-  maybe (throwError "Unknown type error") return (M.lookup n nt)
+  vt <- gets variableTypes
+  case M.lookup n vt of
+    Just t -> return (splitCoreType t)
+    Nothing -> do
+      nt <- gets nameTypes
+      maybe (throwError "Unknown type error") return (M.lookup n nt)
 
 getDef :: Type -> AM [(Name, [Type])]
 getDef t = do
   defs <- gets definitions
   maybe (throwError "Unknown definition error") return (M.lookup t defs)
 
-getTRes :: Name -> AM Type
-getTRes n = fst <$> getT n
-
-getTArg :: Name -> AM [Type]
-getTArg n = snd <$> getT n
-
 introduceV :: Name -> Type -> AM ()
 introduceV n t = do
   id <- gets nextVarId 
   modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . var . V $ id) (variableMap s)
+                   , variableTypes = M.insert n t (variableTypes s)
                    , nextVarId     = id + 1 } 
 
 freshVar :: Type -> AM (Term F)
 freshVar t = do
   id <- gets nextVarId
-  modify $ \s -> s { nextVarId = id + 1}
+  modify $ \s -> s { nextVarId = id + 1 }
   return (typeTag t . build . var . V $ id)
 
 mapVarTo :: Name -> Term F -> AM ()
 mapVarTo n t = modify $ \s -> s { variableMap = M.insert n t (variableMap s) }
 
+specific :: Name -> Term F
+specific = build . con . fun . Function . SFPtr 0 False
+
 getV :: Name -> AM (Term F)
 getV n = do
   vm <- gets variableMap
   case M.lookup n vm of
-    Nothing -> throwError $ "Unkown variable error: " ++ show n
-    Just v -> return v
+    Nothing -> do
+      t <- getT n
+      return (typeTag (foldr FunctionType (fst t) (snd t)) $ specific n)
+    Just v  -> return v
 
 resetV :: AM ()
 resetV = modify $ \s -> s { variableMap   = M.empty
@@ -144,16 +167,17 @@ freshSkolem t = do
 typeTag :: Type -> Term F -> Term F
 typeTag t tm = apply (Function (T 1 t hideTypeTags)) [tm]
 
-exprToTerm :: Expr -> AM (Term F)
+exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of
   FApp n es -> do
     f <- getF n
-    t <- getTRes n
+    (tres, targs) <- getT n
+    let t = foldr FunctionType tres (drop (length es) targs)
     typeTag t . apply f <$> mapM exprToTerm es
 
   Var n -> getV n
 
-patternToTerm :: Type -> Pattern -> AM (Term F)
+patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
   ConstructorPattern n ps -> do
     f <- getF n
@@ -166,32 +190,40 @@ patternToTerm t p = case p of
 
 functionToEquations :: Decl -> AM [Equation F]
 functionToEquations d = case d of
-  FunDecl f xs body -> case body of
-    Case x ps -> sequence
-        [ do resetV
-             (t, ts) <- getT f
-             sequence [ introduceV x t | (x, t) <- zip xs ts ]
-             f       <- getF f 
-             xs_     <- mapM getV xs
-             typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
-               []    -> throwError $ "Unkown variable error in case: " ++ show x
-               (t:_) -> return t
-             pat     <- patternToTerm typ pat
-             -- Replace the occurance of `x` with `pat` in the list of arguments
-             let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
-             e       <- exprToTerm expr
-             return $ typeTag t (apply f xs') :=: e
-        | (pat, expr) <- ps ]
+  FunDecl f xs body -> do
+    es <- case body of
+            Case x ps -> sequence
+                [ do resetV
+                     (t, ts) <- getT f
+                     sequence [ introduceV x t | (x, t) <- zip xs ts ]
+                     f       <- getF f 
+                     xs_     <- mapM getV xs
+                     typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
+                       []    -> throwError $ "Unkown variable error in case: " ++ show x
+                       (t:_) -> return t
+                     pat     <- patternToTerm typ pat
+                     -- Replace the occurance of `x` with `pat` in the list of arguments
+                     let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
+                     e       <- exprToTerm expr
+                     return $ typeTag t (apply f xs') :=: e
+                | (pat, expr) <- ps ]
   
-    E e       -> do
-      -- Reset the variable context
-      resetV
-      (t, ts) <- getT f
-      sequence [ introduceV x t | (x, t) <- zip xs ts ]
-      f  <- getF f
-      xs <- mapM getV xs
-      e  <- exprToTerm e
-      return [typeTag t (apply f xs) :=: e]
+            E e       -> do
+              -- Reset the variable context
+              resetV
+              (t, ts) <- getT f
+              sequence [ introduceV x t | (x, t) <- zip xs ts ]
+              f  <- getF f
+              xs <- mapM getV xs
+              e  <- exprToTerm e
+              return [typeTag t (apply f xs) :=: e]
+    resetV
+    (t, ts) <- getT f
+    sequence [ introduceV x t | (x, t) <- zip xs ts ]
+    f'      <- getF f 
+    xs_     <- mapM getV xs
+    let eq = build (app (fun (Function (Apply (length ts + 1) hideApply))) (typeTag (foldr FunctionType t ts) (specific f) : xs_)) :=: apply f' xs_
+    return $ eq:es
 
   _ -> throwError "Argument to functionToEquations is not a function declaration"
 

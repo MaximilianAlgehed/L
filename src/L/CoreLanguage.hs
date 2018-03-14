@@ -13,11 +13,12 @@ instance Show Name where
 type Program = [Decl]
 
 -- Types
-data Type = MonoType { typeName :: Name }
+data Type = MonoType Name | FunctionType Type Type
           deriving (Ord, Eq)
 
 instance Show Type where
-  show = show . typeName
+  show (FunctionType t0 t1) = "(" ++ show t0 ++ "'2'" ++ show t1 ++ ")"
+  show (MonoType n)         = show n
 
 -- All declarations
 data Decl = DataDecl    Name [(Name, [Type])]
@@ -52,11 +53,17 @@ splitType :: A.Type -> (Type, [Type])
 splitType = go []
   where
     go ts (A.MonoType (A.UIdent t)) = (MonoType (Name t), reverse ts)
-    go ts (A.FunType t0 t1)        = go (monoType t0 : ts) t1
+    go ts (A.FunType t0 t1)        = go (transType t0 : ts) t1
 
-monoType :: A.Type -> Type
-monoType (A.MonoType (A.UIdent t)) = MonoType (Name t)
-monoType _ = error "Not a mono type"
+splitCoreType :: Type -> (Type, [Type])
+splitCoreType = go []
+  where
+    go ts (MonoType n)         = (MonoType n, reverse ts)
+    go ts (FunctionType t0 t1) = go (t0 : ts) t1
+
+transType :: A.Type -> Type
+transType (A.MonoType (A.UIdent t)) = MonoType (Name t)
+transType (A.FunType t0 t1) = FunctionType (transType t0) (transType t1)
 
 surfaceToCore :: A.Program -> Program
 surfaceToCore (A.P ds) = concatMap decl ds
@@ -85,14 +92,14 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     proposition :: A.Proposition -> Proposition
     proposition p = case p of
-      A.PForall ns t p -> foldr (\(A.LIdent n) p -> Forall (Name n) (monoType t) p)
+      A.PForall ns t p -> foldr (\(A.LIdent n) p -> Forall (Name n) (transType t) p)
                                 (proposition p)
                                 ns
       A.PEqual el er   -> Equal (expr el) (expr er)
       A.PExpr e        -> Boolean (expr e)
 
     constructor :: A.Constructor -> (Name, [Type])
-    constructor (A.C (A.UIdent n) ts) = (Name n, map monoType ts)
+    constructor (A.C (A.UIdent n) ts) = (Name n, map transType ts)
 
     body :: A.Expr -> Body
     body b = case b of 
