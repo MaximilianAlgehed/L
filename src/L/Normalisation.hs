@@ -68,7 +68,36 @@ normaliseDecl d = case d of
     pop
     return $ DFun f t xs e : ds
 
+
+  DThm t -> do
+    (t', ds) <- normaliseTheorem t
+    return $ DThm t' : ds
+
   d -> return [d]
+
+normaliseTheorem :: Thm -> NM (Thm, [Decl])
+normaliseTheorem t = case t of
+  TUsing n p deps -> do
+    (p, ds) <- normaliseProposition n p
+    return $ (TUsing n p deps, ds)
+
+normaliseProposition :: LIdent -> Proposition -> NM (Proposition, [Decl])
+normaliseProposition n p = case p of
+  PForall xs t p -> do
+    push
+    mapM (flip introduce t) xs
+    (p, ds) <- normaliseProposition n p
+    pop
+    return (PForall xs t p, ds)
+
+  PEqual e0 e1 -> do
+    (e0, ds0) <- normaliseExpr n e0
+    (e1, ds1) <- normaliseExpr n e1
+    return (PEqual e0 e1, ds0 ++ ds1)
+
+  PExpr e -> do
+    (e, ds) <- normaliseExpr n e
+    return (PExpr e, ds)
 
 normaliseFunctionBody :: LIdent -> Expr -> NM (Expr, [Decl])
 normaliseFunctionBody f e = case e of

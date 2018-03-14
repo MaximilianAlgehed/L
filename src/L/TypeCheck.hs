@@ -86,10 +86,10 @@ instance TypeCheckable Decl where
 instance TypeCheckable Thm where
   type Checked Thm = T.Thm
   typeCheck Nothing t = case t of
-    TStandalone n p    -> T.TStandalone n <$> typeCheck Nothing p
+    TStandalone n p    -> flip (T.TUsing n) [] <$> typeCheck Nothing p
     TUsing n p ns      -> flip (T.TUsing n) ns <$> typeCheck Nothing p
-    TLemma n p         -> T.TLemma n <$> typeCheck Nothing p
-    TLemmaUsing n p ns -> flip (T.TLemmaUsing n) ns <$> typeCheck Nothing p
+    TLemma n p         -> flip (T.TUsing n) [] <$> typeCheck Nothing p
+    TLemmaUsing n p ns -> flip (T.TUsing n) ns <$> typeCheck Nothing p
 
 instance TypeCheckable Proposition where
   type Checked Proposition = T.Proposition

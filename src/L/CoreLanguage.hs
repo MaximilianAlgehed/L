@@ -80,15 +80,8 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     theorem :: A.Thm -> Decl
     theorem t = case t of
-      A.TStandalone (A.LIdent n) p     ->
-        TheoremDecl (Name n) (proposition p) []
       A.TUsing (A.LIdent n) p ids      ->
         TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
-      A.TLemma (A.LIdent n) p          ->
-        TheoremDecl (Name n) (proposition p) []
-      A.TLemmaUsing (A.LIdent n) p ids ->
-        TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
-
 
     proposition :: A.Proposition -> Proposition
     proposition p = case p of

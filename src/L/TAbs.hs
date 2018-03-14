@@ -13,10 +13,7 @@ data Decl
   deriving (Eq, Ord, Show, Read)
 
 data Thm
-    = TStandalone LIdent Proposition
-    | TUsing LIdent Proposition [LIdent]
-    | TLemma LIdent Proposition
-    | TLemmaUsing LIdent Proposition [LIdent]
+    = TUsing LIdent Proposition [LIdent]
   deriving (Eq, Ord, Show, Read)
 
 data Proposition
