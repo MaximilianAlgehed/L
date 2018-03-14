@@ -1,5 +1,5 @@
 
-data Nat = Z | S Nat;
+data Nat     = Z | S Nat;
 data NatList = Nil | Cons Nat NatList;
 
 map : (Nat -> Nat) -> NatList -> NatList
