@@ -25,6 +25,9 @@ import L.TypeCheck
 -- for playing around
 cfg = defaultConfig { cfg_max_critical_pairs = 10000 }
 
+present :: String -> Equation F -> IO ()
+present name eq = putStr (name ++ ": ") >> prettyPrint eq
+
 main :: IO ()
 main = do
   [f, problemName] <- getArgs 
@@ -46,24 +49,27 @@ main = do
 
   -- TODO: Factor out
   putStrLn $ "\n== Trying to prove \"" ++ problemName ++ "\" ==\n"
-  sequence_ [ do --putStrLn "-- Base Theory --"
-                 --mapM_ prettyPrint (given p)
-                 --unless (null (lemmas p)) $ putStrLn "-- Lemmas --"
-                 --mapM_ prettyPrint (lemmas p)
+  putStrLn "-- Base Theory --"
+  let p = head attacked
+  mapM_ (uncurry present) (given p)
+  unless (null (lemmas p)) $ putStrLn "-- Lemmas --"
+  mapM_ (uncurry present) (lemmas p)
+  putStrLn "\n"
+  sequence_ [ do putStrLn $ "*** [case " ++ show caseN ++ "] ***"
                  unless (null (hypotheses p)) $ putStrLn "-- Hypotheses --"
-                 mapM_ prettyPrint (hypotheses p)
+                 mapM_ (uncurry present) (hypotheses p)
                  putStrLn "-- Goal --"
                  prettyPrint (goal p)
-                 let axioms = [ Axiom i ("ax" ++ show i) ax
-                              | (ax, i) <- zip (hypotheses p ++ given p ++ lemmas p) [0..] ]
+                 let axioms = [ Axiom i axName ax
+                              | ((axName, ax), i) <- zip (hypotheses p ++ given p ++ lemmas p) [0..] ]
                  let lhs :=: rhs = goal p
                  let skGoal = build (subst (con . skolem) lhs) :=: build (subst (con . skolem) rhs)
-                 let g = T.goal 0 "the goal" skGoal
+                 let g = T.goal 0 (problemName ++ ", case " ++ show caseN) skGoal
                  let st = addGoal cfg (foldr (\a s -> addAxiom cfg s a) initialState axioms) g
                  completedState <- normaliseGoals <$> complete (Output $ \_ -> return ()) cfg st
                  putStrLn "\n"
                  if solved completedState then do
-                   putStrLn "Closed goal"
+                   putStrLn "*** closed goal ***\n"
                    prettyPrint (Proof.present Proof.defaultConfig (solutions completedState))
                  else do
                    putStrLn "Didn't close goal:"
@@ -71,4 +77,4 @@ main = do
                    prettyPrint $  result (normaliseTerm completedState lhs)
                               :=: result (normaliseTerm completedState rhs)
                  putStrLn "\n"
-            | p <- attacked ]
+            | (p, caseN) <- zip attacked [0..] ]

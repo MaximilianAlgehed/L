@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, TupleSections #-}
 module L.Axiomatisation where
 
 import GHC.Stack
@@ -77,7 +77,7 @@ data AState = S { nameMap       :: M.Map Name F
                 , definitions   :: M.Map Type [(Name, [Type])]
                 , theorems      :: M.Map Name Proposition
                 , nextVarId     :: Int
-                , theory        :: [Equation F]
+                , theory        :: [(String, Equation F)]
                 }
 
 type AM a = StateT AState (Either String) a
@@ -200,9 +200,9 @@ patternToTerm t p = case p of
     introduceV n t
     getV n
 
-functionToEquations :: Decl -> AM [Equation F]
+functionToEquations :: Decl -> AM [(String, Equation F)]
 functionToEquations d = case d of
-  FunDecl f xs body -> do
+  FunDecl f@(Name fname) xs body -> do
     es <- case body of
             Case x ps -> sequence
                 [ do resetV
@@ -217,7 +217,7 @@ functionToEquations d = case d of
                      -- Replace the occurance of `x` with `pat` in the list of arguments
                      let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
                      e       <- exprToTerm expr
-                     return $ apply t f xs' :=: e
+                     return $ ("def. " ++ fname, apply t f xs' :=: e)
                 | (pat, expr) <- ps ]
   
             E e       -> do
@@ -228,14 +228,14 @@ functionToEquations d = case d of
               f  <- getF f
               xs <- mapM getV xs
               e  <- exprToTerm e
-              return [apply t f xs :=: e]
+              return [("def. " ++ fname, apply t f xs :=: e)]
     resetV
     (t, ts) <- getT f
     sequence [ introduceV x t | (x, t) <- zip xs ts ]
     f'      <- getF f 
     xs_     <- mapM getV xs
     let typ = foldr FunctionType t ts
-    let eq = apps (typeTag typ (specific f), typ) xs_ :=: apply t f' xs_
+    let eq = ("apply " ++ fname, apps (typeTag typ (specific f), typ) xs_ :=: apply t f' xs_)
     return $ eq:es
 
   _ -> throwError "Argument to functionToEquations is not a function declaration"
@@ -264,9 +264,9 @@ axiomatise ps = do
   modify $ \s -> s { theory = axs }
 
 data Problem = Problem { goal       :: Equation F
-                       , hypotheses :: [Equation F]
-                       , lemmas     :: [Equation F]
-                       , given      :: [Equation F]
+                       , hypotheses :: [(String, Equation F)]
+                       , lemmas     :: [(String, Equation F)]
+                       , given      :: [(String, Equation F)]
                        }
 
 type InductionSchema = Proposition -> AM [Problem]
@@ -311,7 +311,7 @@ structuralInduction t def prop = do
         c <- getF cn
         let term = apply t c vars
         return $ Problem { goal = (substEq (fromJust $ T.listToSubst [(V idx, term)]) goal)
-                         , hypotheses = ihs
+                         , hypotheses = [ ("I.H. " ++ show i, ih) | (ih, i) <- zip ihs [0..] ]
                          , given = thy, lemmas = [] }
     | (cn, ts) <- def ]
 
@@ -338,10 +338,10 @@ proposition p = case p of
     return (lhs :=: rhs)
   Boolean e0 -> throwError "We don't deal with booleans yet"
 
-assume :: Name -> AM (Equation F)
-assume n = do
+assume :: Name -> AM (String, Equation F)
+assume n@(Name nm) = do
   thmDef <- getThm n
-  proposition thmDef 
+  (nm,) <$> proposition thmDef
 
 {- Function to test the induction schema generation -}
 attack :: Name -> Program -> Either String [Problem]
@@ -350,7 +350,7 @@ attack n prg = runAM $ do
   case [ (p, extras) | TheoremDecl n' p extras <- prg, n == n' ] of
     []    -> throwError "Can't attack a non-existent problem!"
     (p:_) -> do
-      extras <- mapM assume (snd p)
+      extras   <- mapM assume (snd p)
       problems <- structInductOnFirst (fst p)
       -- Add lemmas
       return [ p { lemmas = lemmas p ++ extras } | p <- problems ]
