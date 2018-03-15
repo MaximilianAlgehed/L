@@ -46,10 +46,10 @@ main = do
 
   -- TODO: Factor out
   putStrLn $ "\n== Trying to prove \"" ++ problemName ++ "\" ==\n"
-  sequence_ [ do putStrLn "-- Base Theory --"
-                 mapM_ prettyPrint (given p)
-                 unless (null (lemmas p)) $ putStrLn "-- Lemmas --"
-                 mapM_ prettyPrint (lemmas p)
+  sequence_ [ do --putStrLn "-- Base Theory --"
+                 --mapM_ prettyPrint (given p)
+                 --unless (null (lemmas p)) $ putStrLn "-- Lemmas --"
+                 --mapM_ prettyPrint (lemmas p)
                  unless (null (hypotheses p)) $ putStrLn "-- Hypotheses --"
                  mapM_ prettyPrint (hypotheses p)
                  putStrLn "-- Goal --"
