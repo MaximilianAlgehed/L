@@ -12,6 +12,7 @@ import Twee.Rule (Resulting(..))
 import Twee hiding (goal)
 import qualified Twee as T
 import Twee.Pretty
+import qualified Twee.Proof as Proof
 
 import L.ErrM
 import L.Par
@@ -61,8 +62,9 @@ main = do
                  let st = addGoal cfg (foldr (\a s -> addAxiom cfg s a) initialState axioms) g
                  completedState <- normaliseGoals <$> complete (Output $ \_ -> return ()) cfg st
                  putStrLn "\n"
-                 if solved completedState then
+                 if solved completedState then do
                    putStrLn "Closed goal"
+                   prettyPrint (Proof.present Proof.defaultConfig (solutions completedState))
                  else do
                    putStrLn "Didn't close goal:"
                    let lhs :=: rhs = goal p

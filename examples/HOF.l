@@ -35,11 +35,6 @@ theorem sum-fold
 addSome : Nat -> Nat -> Nat -> Nat
 addSome y x z = add (add x y) z;
 
--- Eta expansion
-theorem eta
-  forall x : Nat.
-  forall f : (Nat -> Nat). f x = (\x : Nat. f x) x;
-
 compose : (Nat -> Nat) -> (Nat -> Nat -> Nat) -> Nat -> Nat -> Nat
 compose mapper folder x y = folder (mapper x) y;
 
