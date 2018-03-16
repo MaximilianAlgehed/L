@@ -11,55 +11,12 @@ import Data.Maybe
 import Twee hiding (goal)
 import qualified Twee.Term as T
 import Twee.Term hiding (Var, F)
-import Twee.Base hiding (Var, F)
+import Twee.Base hiding (Var, F, Function)
 import Twee.Equation
 import qualified Twee.KBO
 
 import L.CoreLanguage
-
-hideTypeTags :: Bool
-hideTypeTags = True
-
-hideApply :: Bool
-hideApply = False 
-
-data FI = F { arityF :: Int
-            , nameF  :: Name
-            , invis  :: Bool
-            }
-        | T { arityF :: Int
-            , typ    :: Type
-            , invis  :: Bool }
-        | SFPtr { arityF :: Int
-                , invis :: Bool
-                , nameF :: Name }
-        | FPtr (Term F) Type
-        | Apply { arityF :: Int, invis :: Bool }
-        deriving (Ord, Eq, Show)
-
-instance Sized FI where
-  size _ = 1
-
-instance Arity FI where
-  arity = arityF
-
-instance Pretty FI where
-  pPrint t@(T _ _ _)     = text . ("tt" ++) . show . typ   $ t
-  pPrint (Apply _ _)     = text "$"
-  pPrint f@(SFPtr _ _ _) = text . ("*" ++) . show . nameF $ f
-  pPrint f               = text . ("'" ++) . show . nameF $ f
-
-instance EqualsBonus FI where
-
-instance PrettyTerm FI where
-  termStyle (Apply _ iv) = if iv then invisible else infixStyle 0
-  termStyle f = if invis f then invisible else curried
-
-instance Ordered (Extended FI) where
-   lessEq = Twee.KBO.lessEq
-   lessIn = Twee.KBO.lessIn
-
-type F = Extended FI
+import L.FunctionSymbols
 
 apps :: (Term F, Type) -> [Term F] -> Term F
 apps f ts = fst $ foldl (\(term, FunctionType _ typ) arg -> (typeTag typ $ build (app (fun (Function (Apply 2 hideApply))) [term, arg]), typ)) f ts

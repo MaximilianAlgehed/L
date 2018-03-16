@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src, grammar
   exposed-modules:     L.CoreLanguage
+                     , L.FunctionSymbols
                      , L.Axiomatisation
                      , L.TypeCheck
                      , L.TAbs

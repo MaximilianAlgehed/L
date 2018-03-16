@@ -14,6 +14,7 @@ import qualified Twee as T
 import Twee.Pretty
 import qualified Twee.Proof as Proof
 
+import L.FunctionSymbols
 import L.ErrM
 import L.Par
 import L.Axiomatisation
