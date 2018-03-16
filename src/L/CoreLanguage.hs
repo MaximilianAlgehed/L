@@ -13,7 +13,8 @@ instance Show Name where
 type Program = [Decl]
 
 -- Types
-data Type = MonoType Name | FunctionType Type Type
+data Type = MonoType Name
+          | FunctionType Type Type
           deriving (Ord, Eq)
 
 instance Show Type where
@@ -30,7 +31,6 @@ data Decl = DataDecl    Name [(Name, [Type])]
 -- Propositions
 data Proposition = Forall  Name Type Proposition
                  | Equal   Expr Expr
-                 | Boolean Expr
                  deriving (Ord, Eq, Show)
 
 -- Function bodies
@@ -46,6 +46,7 @@ data Pattern = ConstructorPattern Name [Pattern]
 -- Expressions
 data Expr = FApp Name [Expr]
           | Var  Name
+          | IfEq Expr Expr Expr Expr
           deriving (Ord, Eq, Show)
 
 {- Translate surface syntax to core syntax -}
@@ -85,11 +86,15 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     proposition :: A.Proposition -> Proposition
     proposition p = case p of
-      A.PForall ns t p -> foldr (\(A.LIdent n) p -> Forall (Name n) (transType t) p)
-                                (proposition p)
-                                ns
-      A.PEqual el er   -> Equal (expr el) (expr er)
-      A.PExpr e        -> Boolean (expr e)
+      A.PForall ns t p   -> foldr (\(A.LIdent n) p -> Forall (Name n) (transType t) p)
+                                  (proposition p)
+                                  ns
+      A.PEqual el er     -> Equal (expr el) (expr er)
+      A.PExpr e          -> Equal (expr e) (FApp (Name "True") [])
+      A.PImplies el er p -> go (proposition p)
+        where
+          go (Equal l r)    = Equal (IfEq (expr el) (expr er) l r) r
+          go (Forall n t p) = Forall n t (go p)
 
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map transType ts)

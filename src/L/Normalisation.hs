@@ -99,6 +99,12 @@ normaliseProposition n p = case p of
     (e1, ds1) <- normaliseExpr n e1
     return (PEqual e0 e1, ds0 ++ ds1)
 
+  PImplies e0 e1 p -> do
+    (e0, ds0) <- normaliseExpr n e0
+    (e1, ds1) <- normaliseExpr n e1
+    (p, ds2)  <- normaliseProposition n p
+    return (PImplies e0 e1 p, ds0 ++ ds1 ++ ds2)
+
   PExpr e -> do
     (e, ds) <- normaliseExpr n e
     return (PExpr e, ds)

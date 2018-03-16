@@ -32,10 +32,38 @@ data FI = F { arityF :: Int
                 , nameF :: Name }
         | FPtr (Term F) Type
         | Apply { arityF :: Int, invis :: Bool }
+        | FIfEq
         deriving (Ord, Eq, Show)
+
+instance Sized FI where
+  size _ = 1
+
+instance Arity FI where
+  arity FIfEq = 4
+  arity f = arityF f
+
+instance Pretty FI where
+  pPrint FIfEq           = text "ifEq"
+  pPrint t@(T _ _ _)     = text . ("tt" ++) . show . typ   $ t
+  pPrint (Apply _ _)     = text "$"
+  pPrint f@(SFPtr _ _ _) = text . ("*" ++) . show . nameF $ f
+  pPrint f               = text . ("'" ++) . show . nameF $ f
+
+instance EqualsBonus FI where
+
+instance PrettyTerm FI where
+  termStyle FIfEq = uncurried
+  termStyle (Apply _ iv) = if iv then invisible else infixStyle 0
+  termStyle f = if invis f then invisible else curried
+
+instance Ordered (Ext FI) where
+  lessEq = Twee.KBO.lessEq
+  lessIn = Twee.KBO.lessIn
 
 -- | A function symbol extended with a minimal constant and Skolem functions.
 -- Comes equipped with 'Minimal' and 'Skolem' instances.
+--
+-- Stolen from Twee.Base and adapted
 data Ext f =
     -- | The minimal constant.
     Minimal
@@ -67,37 +95,19 @@ instance (Typeable f, Ord f) => Minimal (Ext f) where
 
 instance (Typeable f, Ord f) => Skolem (Ext f) where
   skolem x = fun (Skolem x)
+
   getSkolem (T.F (Skolem x)) = Just x
   getSkolem _ = Nothing
 
 instance EqualsBonus f => EqualsBonus (Ext f) where
   hasEqualsBonus (Function f) = hasEqualsBonus f
   hasEqualsBonus _ = False
+
   isEquals (Function f) = isEquals f
   isEquals _ = False
+
   isTrue (Function f) = isTrue f
   isTrue _ = False
+
   isFalse (Function f) = isFalse f
   isFalse _ = False
-
-instance Sized FI where
-  size _ = 1
-
-instance Arity FI where
-  arity f = arityF f
-
-instance Pretty FI where
-  pPrint t@(T _ _ _)     = text . ("tt" ++) . show . typ   $ t
-  pPrint (Apply _ _)     = text "$"
-  pPrint f@(SFPtr _ _ _) = text . ("*" ++) . show . nameF $ f
-  pPrint f               = text . ("'" ++) . show . nameF $ f
-
-instance EqualsBonus FI where
-
-instance PrettyTerm FI where
-  termStyle (Apply _ iv) = if iv then invisible else infixStyle 0
-  termStyle f = if invis f then invisible else curried
-
-instance Ordered (Ext FI) where
-   lessEq = Twee.KBO.lessEq
-   lessIn = Twee.KBO.lessIn

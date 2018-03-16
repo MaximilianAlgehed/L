@@ -101,7 +101,17 @@ instance TypeCheckable Proposition where
       pop
       return p
 
-    PEqual l r -> T.PEqual <$> (snd <$> typeCheck Nothing l) <*> (snd <$> typeCheck Nothing r)
+    PImplies l r p -> do
+      (lt, l) <- typeCheck Nothing l
+      (rt, r) <- typeCheck Nothing r
+      unless (lt == rt) $ fail "Unequal type in propostion antecedent"
+      T.PImplies l r <$> typeCheck Nothing p
+
+    PEqual l r -> do
+      (lt, l) <- typeCheck Nothing l
+      (rt, r) <- typeCheck Nothing r
+      unless (lt == rt) $ fail "Unequal types in proposition equality"
+      return $ T.PEqual l r
 
     PExpr e -> T.PExpr . snd <$> typeCheck Nothing e
 

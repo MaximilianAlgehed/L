@@ -146,6 +146,8 @@ exprToTerm e = case e of
 
   Var n -> getV n
 
+  IfEq p q f g -> build . app (fun (Function FIfEq)) <$> mapM exprToTerm [p, q, f, g]
+
 patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
   ConstructorPattern n ps -> do
@@ -199,6 +201,7 @@ functionToEquations d = case d of
 
 axiomatise :: Program -> AM ()
 axiomatise ps = do
+  -- Introduce the axiom for `IfEq`
   -- Introduce all defintions and constructors to the context
   sequence_ [ do
                 -- Definitions
@@ -218,7 +221,8 @@ axiomatise ps = do
   sequence_ [ addThm n p | TheoremDecl n p _ <- ps ]
   -- Compute axiomatisation from the functions
   axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ _ _) <- ps ]
-  modify $ \s -> s { theory = axs }
+  let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
+  modify $ \s -> s { theory = eqAx : axs }
 
 data Problem = Problem { goal       :: Equation F
                        , hypotheses :: [(String, Equation F)]
@@ -235,8 +239,6 @@ splitProposition p = case p of
     ((n, t) : vt, lr)
 
   Equal lhs rhs -> ([], (lhs, rhs))
-
-  Boolean e     -> ([], (e, FApp (Name "True") []))
 
 -- Generates an induction schema where the first variable in the proposition 
 -- to be proven is of type `t` with definition `def`
@@ -289,11 +291,11 @@ proposition p = case p of
   Forall n t p -> do
     introduceV n t
     proposition p
+
   Equal e0 e1 -> do
     lhs <- exprToTerm e0
     rhs <- exprToTerm e1
     return (lhs :=: rhs)
-  Boolean e0 -> throwError "We don't deal with booleans yet"
 
 assume :: Name -> AM (String, Equation F)
 assume n@(Name nm) = do

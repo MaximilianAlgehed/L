@@ -21,9 +21,11 @@ TLemmaUsing. Thm ::= "lemma" LIdent Proposition "using" [LIdent];
 separator Constructor "|";
 
 -- Propositions
-PForall. Proposition ::= "forall" [LIdent] ":" Type "." Proposition;
-PEqual.  Proposition ::= Expr "=" Expr;
-PExpr.   Proposition ::= Expr;
+-- TODO: Clean up this syntax
+PForall.  Proposition ::= "forall" [LIdent] ":" Type "." Proposition;
+PImplies. Proposition ::= Expr "=" Expr "=>" Proposition;
+PEqual.   Proposition ::= Expr "=" Expr;
+PExpr.    Proposition ::= Expr;
 
 separator nonempty LIdent "";
 
