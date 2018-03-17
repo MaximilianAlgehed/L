@@ -91,6 +91,12 @@ instance TypeCheckable Thm where
     TLemma n p         -> flip (T.TUsing n) [] <$> typeCheck Nothing p
     TLemmaUsing n p ns -> flip (T.TUsing n) ns <$> typeCheck Nothing p
 
+true :: T.Expr
+true = T.ECon bool (UIdent "True")
+
+bool :: Type
+bool = MonoType (UIdent "Bool")
+
 instance TypeCheckable Proposition where
   type Checked Proposition = T.Proposition
   typeCheck Nothing p = case p of
@@ -107,13 +113,21 @@ instance TypeCheckable Proposition where
       unless (lt == rt) $ fail "Unequal type in propostion antecedent"
       T.PImplies l r <$> typeCheck Nothing p
 
+    PImpliesB a p -> do
+      (t, a) <- typeCheck Nothing a
+      unless (t == bool) $ fail "Unequal type in propostion antecedent"
+      T.PImplies a true <$> typeCheck Nothing p
+
     PEqual l r -> do
       (lt, l) <- typeCheck Nothing l
       (rt, r) <- typeCheck Nothing r
       unless (lt == rt) $ fail "Unequal types in proposition equality"
       return $ T.PEqual l r
 
-    PExpr e -> T.PExpr . snd <$> typeCheck Nothing e
+    PExpr e -> do
+      (t, e) <- typeCheck Nothing e
+      unless (t == bool) $ fail "Expected boolean expression in proposition"
+      return $ T.PEqual e true
 
 -- Binds variables in the current context
 instance TypeCheckable Pat where

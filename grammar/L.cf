@@ -22,10 +22,11 @@ separator Constructor "|";
 
 -- Propositions
 -- TODO: Clean up this syntax
-PForall.  Proposition ::= "forall" [LIdent] ":" Type "." Proposition;
-PImplies. Proposition ::= Expr "=" Expr "=>" Proposition;
-PEqual.   Proposition ::= Expr "=" Expr;
-PExpr.    Proposition ::= Expr;
+PForall.  Proposition  ::= "forall" [LIdent] ":" Type "." Proposition;
+PImplies. Proposition  ::= Expr "=" Expr "=>" Proposition;
+PImpliesB. Proposition ::= Expr "=>" Proposition;
+PEqual.   Proposition  ::= Expr "=" Expr;
+PExpr.    Proposition  ::= Expr;
 
 separator nonempty LIdent "";
 

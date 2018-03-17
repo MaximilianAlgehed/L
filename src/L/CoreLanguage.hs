@@ -90,7 +90,6 @@ surfaceToCore (A.P ds) = concatMap decl ds
                                   (proposition p)
                                   ns
       A.PEqual el er     -> Equal (expr el) (expr er)
-      A.PExpr e          -> Equal (expr e) (FApp (Name "True") [])
       A.PImplies el er p -> Implies (expr el) (expr er) (proposition p)
 
     constructor :: A.Constructor -> (Name, [Type])

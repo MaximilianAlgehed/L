@@ -111,6 +111,7 @@ instance Print Proposition where
   prt i e = case e of
     PForall lidents type_ proposition -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lidents, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 proposition])
     PImplies expr1 expr2 proposition -> prPrec i 0 (concatD [prt 0 expr1, doc (showString "="), prt 0 expr2, doc (showString "=>"), prt 0 proposition])
+    PImpliesB expr proposition -> prPrec i 0 (concatD [prt 0 expr, doc (showString "=>"), prt 0 proposition])
     PEqual expr1 expr2 -> prPrec i 0 (concatD [prt 0 expr1, doc (showString "="), prt 0 expr2])
     PExpr expr -> prPrec i 0 (concatD [prt 0 expr])
 

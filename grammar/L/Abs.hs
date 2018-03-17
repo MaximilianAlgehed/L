@@ -28,6 +28,7 @@ data Thm
 data Proposition
     = PForall [LIdent] Type Proposition
     | PImplies Expr Expr Proposition
+    | PImpliesB Expr Proposition
     | PEqual Expr Expr
     | PExpr Expr
   deriving (Eq, Ord, Show, Read)

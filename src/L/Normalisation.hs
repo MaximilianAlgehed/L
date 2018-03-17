@@ -105,10 +105,6 @@ normaliseProposition n p = case p of
     (p, ds2)  <- normaliseProposition n p
     return (PImplies e0 e1 p, ds0 ++ ds1 ++ ds2)
 
-  PExpr e -> do
-    (e, ds) <- normaliseExpr n e
-    return (PExpr e, ds)
-
 normaliseFunctionBody :: LIdent -> Expr -> NM (Expr, [Decl])
 normaliseFunctionBody f inputExpr = case inputExpr of
     ECase t ec as -> case ec of

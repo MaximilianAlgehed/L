@@ -33,6 +33,7 @@ transProposition :: Proposition -> Result
 transProposition x = case x of
   PForall lidents type_ proposition -> failure x
   PImplies expr1 expr2 proposition -> failure x
+  PImpliesB expr proposition -> failure x
   PEqual expr1 expr2 -> failure x
   PExpr expr -> failure x
 transConstructor :: Constructor -> Result
