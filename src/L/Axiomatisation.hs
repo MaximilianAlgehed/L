@@ -146,8 +146,6 @@ exprToTerm e = case e of
 
   Var n -> getV n
 
-  IfEq p q f g -> build . app (fun (Function FIfEq)) <$> mapM exprToTerm [p, q, f, g]
-
 patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
   ConstructorPattern n ps -> do
@@ -201,7 +199,6 @@ functionToEquations d = case d of
 
 axiomatise :: Program -> AM ()
 axiomatise ps = do
-  -- Introduce the axiom for `IfEq`
   -- Introduce all defintions and constructors to the context
   sequence_ [ do
                 -- Definitions
@@ -221,32 +218,40 @@ axiomatise ps = do
   sequence_ [ addThm n p | TheoremDecl n p _ <- ps ]
   -- Compute axiomatisation from the functions
   axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ _ _) <- ps ]
+  -- Introduce the axiom for `IfEq`
   let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
   modify $ \s -> s { theory = eqAx : axs }
 
-data Problem = Problem { goal       :: Equation F
-                       , hypotheses :: [(String, Equation F)]
-                       , lemmas     :: [(String, Equation F)]
-                       , given      :: [(String, Equation F)]
+data Problem = Problem { goal        :: Equation F
+                       , antecedents :: [(String, Equation F)]
+                       , hypotheses  :: [(String, Equation F)]
+                       , lemmas      :: [(String, Equation F)]
+                       , background  :: [(String, Equation F)]
                        }
 
 type InductionSchema = Proposition -> AM [Problem]
 
-splitProposition :: Proposition -> ([(Name, Type)], (Expr, Expr))
+splitProposition :: Proposition -> ([(Name, Type)], [(Expr, Expr)], (Expr, Expr))
 splitProposition p = case p of
   Forall n t p ->
-    let (vt, lr) = splitProposition p in
-    ((n, t) : vt, lr)
+    let (vt, antecs, lr) = splitProposition p in
+    ((n, t) : vt, antecs, lr)
 
-  Equal lhs rhs -> ([], (lhs, rhs))
+  Equal lhs rhs -> ([], [], (lhs, rhs))
+
+  Implies e0 e1 p ->
+    let (vt, antecs, lr) = splitProposition p in
+    (vt, (e0, e1) : antecs, lr)
+
+
+substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
 
 -- Generates an induction schema where the first variable in the proposition 
 -- to be proven is of type `t` with definition `def`
 structuralInduction :: Type -> [(Name, [Type])] -> InductionSchema
 structuralInduction t def prop = do
   resetV
-  let (vt, (lhs, rhs)) = splitProposition prop
-  let substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
+  let (vt, antecs, (lhs, rhs)) = splitProposition prop
   -- Introduce all the variables except for the one we are doing
   -- induction over (the first one)
   mapM (uncurry introduceV) $ drop 1 vt
@@ -256,6 +261,8 @@ structuralInduction t def prop = do
   mapM (\n -> mapVarTo n (build . var $ V idx)) (fst <$> take 1 vt)
   -- The goal
   goal <- (:=:) <$> exprToTerm lhs <*> exprToTerm rhs
+  -- All antecedents
+  ants <- sequence [ (:=:) <$> exprToTerm lhs <*> exprToTerm rhs | (lhs, rhs) <- antecs ]
   -- The underlying theory
   thy <- gets theory
   sequence
@@ -269,20 +276,32 @@ structuralInduction t def prop = do
         -- Get the constructor term
         c <- getF cn
         let term = apply t c vars
-        return $ Problem { goal = (substEq (fromJust $ T.listToSubst [(V idx, term)]) goal)
-                         , hypotheses = [ ("I.H. " ++ show i, ih) | (ih, i) <- zip ihs [0..] ]
-                         , given = thy, lemmas = [] }
+        -- Antecedents
+        let antecs = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) <$> ants
+        return $ Problem { goal = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) $ goal
+                         , antecedents = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] antecs]
+                         , hypotheses = [ ("I.H. " ++ show i, substEq (con . skolem) ih) | (ih, i) <- zip ihs [0..] ]
+                         , background = thy
+                         , lemmas = [] }
     | (cn, ts) <- def ]
 
 -- Do structural induction on the first argument
 structInductOnFirst :: InductionSchema
 structInductOnFirst prop =
   case splitProposition prop of
-    ([], (lhs, rhs)) -> do
+    ([], antecs, (lhs, rhs)) -> do
+      -- The goal
       g <- (:=:) <$> exprToTerm lhs <*> exprToTerm rhs
+      -- All antecedents
+      ants <- sequence [ (:=:) <$> exprToTerm lhs <*> exprToTerm rhs ]
+      -- The background
       thy <- gets theory
-      return [Problem { goal = g, given = thy, hypotheses = [], lemmas = [] }]
-    ((_, t):_, _) -> do
+      -- skolemised antecedents 
+      let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] (substEq (con . skolem) <$> ants) ]
+      -- skolemised goal
+      let finalGoal = substEq (con . skolem) g
+      return [Problem { goal = finalGoal, antecedents = antecs, background = thy, hypotheses = [], lemmas = [] }]
+    ((_, t):_, _, _) -> do
       def <- getDef t
       structuralInduction t def prop
 
@@ -296,6 +315,12 @@ proposition p = case p of
     lhs <- exprToTerm e0
     rhs <- exprToTerm e1
     return (lhs :=: rhs)
+
+  Implies e0 e1 p -> do
+    e0 <- exprToTerm e0
+    e1 <- exprToTerm e1
+    lhs :=: rhs <- proposition p
+    return $ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs
 
 assume :: Name -> AM (String, Equation F)
 assume n@(Name nm) = do

@@ -31,6 +31,7 @@ data Decl = DataDecl    Name [(Name, [Type])]
 -- Propositions
 data Proposition = Forall  Name Type Proposition
                  | Equal   Expr Expr
+                 | Implies Expr Expr Proposition
                  deriving (Ord, Eq, Show)
 
 -- Function bodies
@@ -46,7 +47,6 @@ data Pattern = ConstructorPattern Name [Pattern]
 -- Expressions
 data Expr = FApp Name [Expr]
           | Var  Name
-          | IfEq Expr Expr Expr Expr
           deriving (Ord, Eq, Show)
 
 {- Translate surface syntax to core syntax -}
@@ -91,10 +91,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
                                   ns
       A.PEqual el er     -> Equal (expr el) (expr er)
       A.PExpr e          -> Equal (expr e) (FApp (Name "True") [])
-      A.PImplies el er p -> go (proposition p)
-        where
-          go (Equal l r)    = Equal (IfEq (expr el) (expr er) l r) r
-          go (Forall n t p) = Forall n t (go p)
+      A.PImplies el er p -> Implies (expr el) (expr er) (proposition p)
 
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map transType ts)

@@ -9,9 +9,16 @@ ge x y = case y of
               Z   -> False
             | S x -> ge x y);
 
-theorem ge-S
-  forall y x : Nat. ge x y = True => ge (S x) y;
+lemma ge-Z
+  forall x : Nat. ge Z x = True => x = Z;
 
--- This might need a case-split in the first case
+-- Don't know how to prove this :S
+lemma ge-S
+  forall y x : Nat. ge x y = True => ge (S x) y
+using
+  ge-Z;
+
 theorem ge-trans
-  forall z y x : Nat. ge x y = True => ge y z = True => ge x z;
+  forall x y z : Nat. ge x y = True => ge y z = True => ge x z
+using
+  ge-Z ge-S;

@@ -50,22 +50,23 @@ main = do
 
   -- TODO: Factor out
   putStrLn $ "\n== Trying to prove \"" ++ problemName ++ "\" ==\n"
-  putStrLn "-- Base Theory --"
+  putStrLn "-- Background Theory --"
   let p = head attacked
-  mapM_ (uncurry present) (given p)
+  mapM_ (uncurry present) (background p)
   unless (null (lemmas p)) $ putStrLn "-- Lemmas --"
   mapM_ (uncurry present) (lemmas p)
   putStrLn "\n"
   sequence_ [ do putStrLn $ "*** [case " ++ show caseN ++ "] ***"
                  unless (null (hypotheses p)) $ putStrLn "-- Hypotheses --"
                  mapM_ (uncurry present) (hypotheses p)
+                 unless (null (antecedents p)) $ putStrLn "-- Antecedents --"
+                 mapM_ (uncurry present) (antecedents p) 
                  putStrLn "-- Goal --"
                  prettyPrint (goal p)
                  let axioms = [ Axiom i axName ax
-                              | ((axName, ax), i) <- zip (hypotheses p ++ given p ++ lemmas p) [0..] ]
+                              | ((axName, ax), i) <- zip (hypotheses p ++ antecedents p ++ lemmas p ++ background p) [0..] ]
                  let lhs :=: rhs = goal p
-                 let skGoal = build (subst (con . skolem) lhs) :=: build (subst (con . skolem) rhs)
-                 let g = T.goal 0 (problemName ++ ", case " ++ show caseN) skGoal
+                 let g = T.goal 0 (problemName ++ ", case " ++ show caseN) (goal p)
                  let st = addGoal cfg (foldr (\a s -> addAxiom cfg s a) initialState axioms) g
                  completedState <- normaliseGoals <$> complete (Output $ \_ -> return ()) cfg st
                  putStrLn "\n"
