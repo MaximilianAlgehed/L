@@ -286,7 +286,7 @@ structuralInduction t def prop = do
         let antecs = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) <$> ants
         return $ Problem { goal = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) $ goal
                          , antecedents = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] antecs]
-                         , hypotheses = [ ("I.H. " ++ show i, substEq (con . skolem) ih) | (ih, i) <- zip ihs [0..] ]
+                         , hypotheses = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih) | (ih, i) <- zip ihs [0..] ]
                          , background = thy
                          , lemmas = [] }
     | (cn, ts) <- def ]
