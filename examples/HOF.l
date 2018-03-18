@@ -7,11 +7,15 @@ map f xs = case xs of
     Nil       -> Nil
   | Cons x xs -> Cons (f x) (map f xs);
 
+{- Adding the definition of `id`
+ - makes the proof for `map-fold` below
+ - take a lot longer than without it.
 id : Nat -> Nat
 id x = x;
 
 theorem map-id
   forall xs : NatList. map id xs = xs;
+-}
 
 fold : (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
 fold f o xs = case xs of

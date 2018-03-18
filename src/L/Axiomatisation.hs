@@ -126,8 +126,14 @@ freshSkolem t = do
   modify $ \s -> s { nextVarId = idx + 1 }
   return . typeTag t . build . con . skolem . V $ idx
 
+tt :: Term F -> Term F -> Term F
+tt typ te = build (app (fun (Function (TT hideTypeTags))) [typ, te])
+
 typeTag :: Type -> Term F -> Term F
-typeTag t tm = build (app (fun (Function (T 1 t hideTypeTags))) [tm])
+typeTag = tt . (build . go)
+  where
+    go t@(MonoType _)       = con . fun . Function $ T t hideTypeTags
+    go (FunctionType t0 t1) = app (fun $ Function (FT hideTypeTags)) $ [ go t0 , go t1 ]
 
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of

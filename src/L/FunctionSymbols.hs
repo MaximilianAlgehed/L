@@ -13,7 +13,7 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = True
+hideTypeTags = True 
 
 hideApply :: Bool
 hideApply = False 
@@ -24,9 +24,10 @@ data FI = F { arityF :: Int
             , nameF  :: Name
             , invis  :: Bool
             }
-        | T { arityF :: Int
-            , typ    :: Type
+        | T { typ    :: Type
             , invis  :: Bool }
+        | FT { invis  :: Bool }
+        | TT { invis :: Bool }
         | SFPtr { arityF :: Int
                 , invis :: Bool
                 , nameF :: Name }
@@ -39,12 +40,17 @@ instance Sized FI where
   size _ = 1
 
 instance Arity FI where
-  arity FIfEq = 4
-  arity f = arityF f
+  arity FIfEq   = 4
+  arity (T _ _) = 1
+  arity (FT _)  = 2
+  arity (TT _)  = 2
+  arity f       = arityF f
 
 instance Pretty FI where
   pPrint FIfEq           = text "ifEq"
-  pPrint t@(T _ _ _)     = text . ("tt" ++) . show . typ   $ t
+  pPrint t@(T _ _)       = text . show . typ $ t
+  pPrint (FT _)          = text "fun"
+  pPrint (TT _)          = text "tt"
   pPrint (Apply _ _)     = text "$"
   pPrint f@(SFPtr _ _ _) = text . ("*" ++) . show . nameF $ f
   pPrint f               = text . ("'" ++) . show . nameF $ f
@@ -52,6 +58,7 @@ instance Pretty FI where
 instance EqualsBonus FI where
 
 instance PrettyTerm FI where
+  termStyle (TT iv) = if iv then implicitArguments 1 invisible else curried 
   termStyle FIfEq = uncurried
   termStyle (Apply _ iv) = if iv then invisible else infixStyle 0
   termStyle f = if invis f then invisible else curried

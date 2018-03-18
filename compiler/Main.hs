@@ -24,7 +24,7 @@ import L.TypeCheck
 
 -- These parameters are pretty dumb, but they are good enough
 -- for playing around
-cfg = defaultConfig { cfg_max_critical_pairs = 10000 }
+cfg = defaultConfig
 
 present :: String -> Equation F -> IO ()
 present name eq = putStr (name ++ ": ") >> prettyPrint eq
