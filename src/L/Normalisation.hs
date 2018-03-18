@@ -145,7 +145,6 @@ normaliseExpr f inputExpr = case inputExpr of
     ELam t x e -> do
       nf   <- next f
       ctx  <- free inputExpr
-      traceM (show ctx)
       let t'  = foldr FunType t (map snd ctx)
       ds   <- normaliseDecl $
         DFun nf t' (map fst ctx ++ [x]) e
