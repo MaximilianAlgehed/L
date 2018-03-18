@@ -102,18 +102,10 @@ instance Print Decl where
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ";"), prt 0 xs])
 instance Print Thm where
   prt i e = case e of
-    TStandalone lident proposition -> prPrec i 0 (concatD [doc (showString "theorem"), prt 0 lident, prt 0 proposition])
-    TUsing lident proposition lidents -> prPrec i 0 (concatD [doc (showString "theorem"), prt 0 lident, prt 0 proposition, doc (showString "using"), prt 0 lidents])
-    TLemma lident proposition -> prPrec i 0 (concatD [doc (showString "lemma"), prt 0 lident, prt 0 proposition])
-    TLemmaUsing lident proposition lidents -> prPrec i 0 (concatD [doc (showString "lemma"), prt 0 lident, prt 0 proposition, doc (showString "using"), prt 0 lidents])
-
-instance Print Proposition where
-  prt i e = case e of
-    PForall lidents type_ proposition -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lidents, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 proposition])
-    PImplies expr1 expr2 proposition -> prPrec i 0 (concatD [prt 0 expr1, doc (showString "="), prt 0 expr2, doc (showString "=>"), prt 0 proposition])
-    PImpliesB expr proposition -> prPrec i 0 (concatD [prt 0 expr, doc (showString "=>"), prt 0 proposition])
-    PEqual expr1 expr2 -> prPrec i 0 (concatD [prt 0 expr1, doc (showString "="), prt 0 expr2])
-    PExpr expr -> prPrec i 0 (concatD [prt 0 expr])
+    TStandalone lident expr -> prPrec i 0 (concatD [doc (showString "theorem"), prt 0 lident, prt 0 expr])
+    TUsing lident expr lidents -> prPrec i 0 (concatD [doc (showString "theorem"), prt 0 lident, prt 0 expr, doc (showString "using"), prt 0 lidents])
+    TLemma lident expr -> prPrec i 0 (concatD [doc (showString "lemma"), prt 0 lident, prt 0 expr])
+    TLemmaUsing lident expr lidents -> prPrec i 0 (concatD [doc (showString "lemma"), prt 0 lident, prt 0 expr, doc (showString "using"), prt 0 lidents])
 
 instance Print Constructor where
   prt i e = case e of
@@ -132,7 +124,10 @@ instance Print Expr where
     EVar lident -> prPrec i 2 (concatD [prt 0 lident])
     ECon uident -> prPrec i 2 (concatD [prt 0 uident])
     EApp expr exprs -> prPrec i 1 (concatD [prt 2 expr, prt 2 exprs])
+    EEqual expr1 expr2 -> prPrec i 1 (concatD [prt 2 expr1, doc (showString "="), prt 2 expr2])
     ELam lident type_ expr -> prPrec i 0 (concatD [doc (showString "\\"), prt 0 lident, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 expr])
+    EAll lidents type_ expr -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lidents, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 expr])
+    EImpl expr1 expr2 -> prPrec i 0 (concatD [prt 1 expr1, doc (showString "=>"), prt 0 expr2])
     ECase expr alts -> prPrec i 0 (concatD [doc (showString "case"), prt 0 expr, doc (showString "of"), prt 0 alts])
   prtList 2 [x] = (concatD [prt 2 x])
   prtList 2 (x:xs) = (concatD [prt 2 x, prt 2 xs])

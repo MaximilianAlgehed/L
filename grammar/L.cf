@@ -13,20 +13,12 @@ DData. Decl ::= "data" UIdent "=" [Constructor];
 DFun.  Decl ::= LIdent ":" Type LIdent [LIdent] "=" Expr;
 DThm.  Decl ::= Thm;
 
-TStandalone. Thm ::= "theorem" LIdent Proposition;
-TUsing.      Thm ::= "theorem" LIdent Proposition "using" [LIdent];
-TLemma.      Thm ::= "lemma" LIdent Proposition;
-TLemmaUsing. Thm ::= "lemma" LIdent Proposition "using" [LIdent];
+TStandalone. Thm ::= "theorem" LIdent Expr;
+TUsing.      Thm ::= "theorem" LIdent Expr "using" [LIdent];
+TLemma.      Thm ::= "lemma" LIdent Expr;
+TLemmaUsing. Thm ::= "lemma" LIdent Expr "using" [LIdent];
 
 separator Constructor "|";
-
--- Propositions
--- TODO: Clean up this syntax
-PForall.   Proposition ::= "forall" [LIdent] ":" Type "." Proposition;
-PImplies.  Proposition ::= Expr "=" Expr "=>" Proposition;
-PImpliesB. Proposition ::= Expr "=>" Proposition;
-PEqual.    Proposition ::= Expr "=" Expr;
-PExpr.     Proposition ::= Expr;
 
 separator nonempty LIdent "";
 
@@ -42,12 +34,14 @@ FunType.  Type  ::= Type1 "->" Type;
 coercions Type 1;
 
 -- Expressions
-EVar.  Expr2 ::= LIdent;
-ECon.  Expr2 ::= UIdent;
-EApp.  Expr1 ::= Expr2 [Expr2];
--- Lazy choice of syntax to avoid having to do proper type inference
-ELam.  Expr  ::= "\\" LIdent ":" Type "." Expr;
-ECase. Expr  ::= "case" Expr "of" [Alt];
+EVar.   Expr2  ::= LIdent;
+ECon.   Expr2  ::= UIdent;
+EApp.   Expr1  ::= Expr2 [Expr2];
+EEqual. Expr1  ::= Expr2 "=" Expr2;
+ELam.   Expr   ::= "\\" LIdent ":" Type "." Expr;
+EAll.   Expr   ::= "forall" [LIdent] ":" Type "." Expr;
+EImpl.  Expr   ::= Expr1 "=>" Expr;
+ECase.  Expr   ::= "case" Expr "of" [Alt];
 
 coercions Expr 2;
 

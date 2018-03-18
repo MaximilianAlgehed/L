@@ -19,18 +19,10 @@ data Decl
   deriving (Eq, Ord, Show, Read)
 
 data Thm
-    = TStandalone LIdent Proposition
-    | TUsing LIdent Proposition [LIdent]
-    | TLemma LIdent Proposition
-    | TLemmaUsing LIdent Proposition [LIdent]
-  deriving (Eq, Ord, Show, Read)
-
-data Proposition
-    = PForall [LIdent] Type Proposition
-    | PImplies Expr Expr Proposition
-    | PImpliesB Expr Proposition
-    | PEqual Expr Expr
-    | PExpr Expr
+    = TStandalone LIdent Expr
+    | TUsing LIdent Expr [LIdent]
+    | TLemma LIdent Expr
+    | TLemmaUsing LIdent Expr [LIdent]
   deriving (Eq, Ord, Show, Read)
 
 data Constructor = C UIdent [Type]
@@ -43,7 +35,10 @@ data Expr
     = EVar LIdent
     | ECon UIdent
     | EApp Expr [Expr]
+    | EEqual Expr Expr
     | ELam LIdent Type Expr
+    | EAll [LIdent] Type Expr
+    | EImpl Expr Expr
     | ECase Expr [Alt]
   deriving (Eq, Ord, Show, Read)
 

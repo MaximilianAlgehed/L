@@ -25,17 +25,10 @@ transDecl x = case x of
   DThm thm -> failure x
 transThm :: Thm -> Result
 transThm x = case x of
-  TStandalone lident proposition -> failure x
-  TUsing lident proposition lidents -> failure x
-  TLemma lident proposition -> failure x
-  TLemmaUsing lident proposition lidents -> failure x
-transProposition :: Proposition -> Result
-transProposition x = case x of
-  PForall lidents type_ proposition -> failure x
-  PImplies expr1 expr2 proposition -> failure x
-  PImpliesB expr proposition -> failure x
-  PEqual expr1 expr2 -> failure x
-  PExpr expr -> failure x
+  TStandalone lident expr -> failure x
+  TUsing lident expr lidents -> failure x
+  TLemma lident expr -> failure x
+  TLemmaUsing lident expr lidents -> failure x
 transConstructor :: Constructor -> Result
 transConstructor x = case x of
   C uident types -> failure x
@@ -48,7 +41,10 @@ transExpr x = case x of
   EVar lident -> failure x
   ECon uident -> failure x
   EApp expr exprs -> failure x
+  EEqual expr1 expr2 -> failure x
   ELam lident type_ expr -> failure x
+  EAll lidents type_ expr -> failure x
+  EImpl expr1 expr2 -> failure x
   ECase expr alts -> failure x
 transAlt :: Alt -> Result
 transAlt x = case x of
