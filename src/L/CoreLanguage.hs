@@ -85,13 +85,16 @@ surfaceToCore (A.P ds) = concatMap decl ds
       A.TUsing (A.LIdent n) p ids      ->
         TheoremDecl (Name n) (proposition p) [ Name n | A.LIdent n <- ids ]
 
-    proposition :: A.Proposition -> Proposition
+    proposition :: A.Expr -> Proposition
     proposition p = case p of
-      A.PForall ns t p   -> foldr (\(A.LIdent n) p -> Forall (Name n) (transType t) p)
-                                  (proposition p)
-                                  ns
-      A.PEqual el er     -> Equal (expr el) (expr er)
-      A.PImplies el er p -> Implies (expr el) (expr er) (proposition p)
+
+      A.EAll _ ns t p -> foldr (\(A.LIdent n) p -> Forall (Name n) (transType t) p)
+                               (proposition p)
+                               ns
+
+      A.EEqual _ el er -> Equal (expr el) (expr er)
+
+      A.EImpl _ el er p -> Implies (expr el) (expr er) (proposition p)
 
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map transType ts)

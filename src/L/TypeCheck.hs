@@ -86,10 +86,10 @@ instance TypeCheckable Decl where
 instance TypeCheckable Thm where
   type Checked Thm = T.Thm
   typeCheck Nothing t = case t of
-    TStandalone n p    -> flip (T.TUsing n) [] <$> typeCheck Nothing p
-    TUsing n p ns      -> flip (T.TUsing n) ns <$> typeCheck Nothing p
-    TLemma n p         -> flip (T.TUsing n) [] <$> typeCheck Nothing p
-    TLemmaUsing n p ns -> flip (T.TUsing n) ns <$> typeCheck Nothing p
+    TStandalone n p    -> flip (T.TUsing n) [] . snd <$> typeCheck Nothing p
+    TUsing n p ns      -> flip (T.TUsing n) ns . snd <$> typeCheck Nothing p
+    TLemma n p         -> flip (T.TUsing n) [] . snd <$> typeCheck Nothing p
+    TLemmaUsing n p ns -> flip (T.TUsing n) ns . snd <$> typeCheck Nothing p
 
 true :: T.Expr
 true = T.ECon bool (UIdent "True")
@@ -142,21 +142,21 @@ instance TypeCheckable Expr where
       (tl, l) <- typeCheck Nothing l
       (tr, r) <- typeCheck Nothing r
       unless (tl == tr) $ fail "Type mismatch on equality"
-      return (formula, T.EEqual formula l r) 
+      return (Formula, T.EEqual Formula l r) 
 
     EAll xs t e -> do
-      mapM_ (flip introduceV t) xs
+      mapM_ (flip introduce t) xs
       (t, e) <- typeCheck Nothing e
-      unless (t == formula) $ fail "Expected formula result in forall"
-      return (formula, T.EAll xs t e)
+      unless (t == Formula) $ fail "Expected Formula result in forall"
+      return (Formula, T.EAll Formula xs t e)
 
     EImpl l r e -> do
       (tl, l) <- typeCheck Nothing l
       (tr, r) <- typeCheck Nothing r
       unless (tl == tr) $ fail "Type mismatch on equality"
       (te, e) <- typeCheck Nothing e
-      unless (te == formula) $ fail "Expected formula result in implication"
-      return (formula, T.EImpl formula l r e)
+      unless (te == Formula) $ fail "Expected Formula result in implication"
+      return (Formula, T.EImpl Formula l r e)
 
     ECase e as -> do
       -- Check if patterns overlap

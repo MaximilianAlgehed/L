@@ -82,28 +82,8 @@ normaliseDecl d = case d of
 normaliseTheorem :: Thm -> NM (Thm, [Decl])
 normaliseTheorem t = case t of
   TUsing n p deps -> do
-    (p, ds) <- normaliseProposition n p
+    (p, ds) <- normaliseExpr n p
     return $ (TUsing n p deps, ds)
-
-normaliseProposition :: LIdent -> Proposition -> NM (Proposition, [Decl])
-normaliseProposition n p = case p of
-  PForall xs t p -> do
-    push
-    mapM (flip introduce t) xs
-    (p, ds) <- normaliseProposition n p
-    pop
-    return (PForall xs t p, ds)
-
-  PEqual e0 e1 -> do
-    (e0, ds0) <- normaliseExpr n e0
-    (e1, ds1) <- normaliseExpr n e1
-    return (PEqual e0 e1, ds0 ++ ds1)
-
-  PImplies e0 e1 p -> do
-    (e0, ds0) <- normaliseExpr n e0
-    (e1, ds1) <- normaliseExpr n e1
-    (p, ds2)  <- normaliseProposition n p
-    return (PImplies e0 e1 p, ds0 ++ ds1 ++ ds2)
 
 normaliseFunctionBody :: LIdent -> Expr -> NM (Expr, [Decl])
 normaliseFunctionBody f inputExpr = case inputExpr of

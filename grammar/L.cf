@@ -30,6 +30,7 @@ separator Type "";
 -- Types
 MonoType. Type1 ::= UIdent;
 FunType.  Type  ::= Type1 "->" Type;
+Formula.  Type1 ::= "Formula";
 
 coercions Type 1;
 

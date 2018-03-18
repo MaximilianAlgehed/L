@@ -36,6 +36,7 @@ transType :: Type -> Result
 transType x = case x of
   MonoType uident -> failure x
   FunType type_1 type_2 -> failure x
+  Formula -> failure x
 transExpr :: Expr -> Result
 transExpr x = case x of
   EVar lident -> failure x

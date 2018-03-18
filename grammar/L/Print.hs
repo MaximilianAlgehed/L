@@ -117,6 +117,7 @@ instance Print Type where
   prt i e = case e of
     MonoType uident -> prPrec i 1 (concatD [prt 0 uident])
     FunType type_1 type_2 -> prPrec i 0 (concatD [prt 1 type_1, doc (showString "->"), prt 0 type_2])
+    Formula -> prPrec i 1 (concatD [doc (showString "Formula")])
   prtList _ [] = (concatD [])
   prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 instance Print Expr where
