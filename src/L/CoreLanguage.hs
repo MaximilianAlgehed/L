@@ -18,7 +18,7 @@ data Type = MonoType Name
           deriving (Ord, Eq)
 
 instance Show Type where
-  show (FunctionType t0 t1) = "(" ++ show t0 ++ "'2'" ++ show t1 ++ ")"
+  show (FunctionType t0 t1) = "(" ++ show t0 ++ " -> " ++ show t1 ++ ")"
   show (MonoType n)         = show n
 
 -- All declarations
@@ -37,6 +37,7 @@ data Proposition = Forall  Name Type Proposition
 -- Function bodies
 data Body = Case Name [(Pattern, Expr)]
           | E    Expr
+          | P    Proposition
           deriving (Ord, Eq, Show)
 
 -- Patterns on the form "C0 x0 x1 (C1 x2 ...) ..."

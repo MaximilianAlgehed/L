@@ -97,38 +97,6 @@ true = T.ECon bool (UIdent "True")
 bool :: Type
 bool = MonoType (UIdent "Bool")
 
-instance TypeCheckable Proposition where
-  type Checked Proposition = T.Proposition
-  typeCheck Nothing p = case p of
-    PForall vs t p -> do
-      push
-      mapM_ (flip introduce t) vs
-      p <- T.PForall vs t <$> typeCheck Nothing p
-      pop
-      return p
-
-    PImplies l r p -> do
-      (lt, l) <- typeCheck Nothing l
-      (rt, r) <- typeCheck Nothing r
-      unless (lt == rt) $ fail "Unequal type in propostion antecedent"
-      T.PImplies l r <$> typeCheck Nothing p
-
-    PImpliesB a p -> do
-      (t, a) <- typeCheck Nothing a
-      unless (t == bool) $ fail "Unequal type in propostion antecedent"
-      T.PImplies a true <$> typeCheck Nothing p
-
-    PEqual l r -> do
-      (lt, l) <- typeCheck Nothing l
-      (rt, r) <- typeCheck Nothing r
-      unless (lt == rt) $ fail "Unequal types in proposition equality"
-      return $ T.PEqual l r
-
-    PExpr e -> do
-      (t, e) <- typeCheck Nothing e
-      unless (t == bool) $ fail "Expected boolean expression in proposition"
-      return $ T.PEqual e true
-
 -- Binds variables in the current context
 instance TypeCheckable Pat where
   type Checked Pat = T.Pat
@@ -169,6 +137,26 @@ instance TypeCheckable Expr where
       unless (and (zipWith (==) (map fst at') argst)) (typeError 13)
       let t' = foldr FunType rt (drop (length es) argst)
       return $ (t', T.EApp t' f' (map snd at'))
+
+    EEqual l r  -> do
+      (tl, l) <- typeCheck Nothing l
+      (tr, r) <- typeCheck Nothing r
+      unless (tl == tr) $ fail "Type mismatch on equality"
+      return (formula, T.EEqual formula l r) 
+
+    EAll xs t e -> do
+      mapM_ (flip introduceV t) xs
+      (t, e) <- typeCheck Nothing e
+      unless (t == formula) $ fail "Expected formula result in forall"
+      return (formula, T.EAll xs t e)
+
+    EImpl l r e -> do
+      (tl, l) <- typeCheck Nothing l
+      (tr, r) <- typeCheck Nothing r
+      unless (tl == tr) $ fail "Type mismatch on equality"
+      (te, e) <- typeCheck Nothing e
+      unless (te == formula) $ fail "Expected formula result in implication"
+      return (formula, T.EImpl formula l r e)
 
     ECase e as -> do
       -- Check if patterns overlap

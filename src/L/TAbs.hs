@@ -13,13 +13,7 @@ data Decl
   deriving (Eq, Ord, Show, Read)
 
 data Thm
-    = TUsing LIdent Proposition [LIdent]
-  deriving (Eq, Ord, Show, Read)
-
-data Proposition
-    = PForall [LIdent] Type Proposition
-    | PImplies Expr Expr Proposition
-    | PEqual Expr Expr
+    = TUsing LIdent Expr [LIdent]
   deriving (Eq, Ord, Show, Read)
 
 data Expr
@@ -28,6 +22,9 @@ data Expr
     | EApp { exprType :: Type, exprFun :: Expr, exprArgs :: [Expr] }
     | ECase { exprType :: Type, exprCaseOn :: Expr, exprAlts ::  [Alt] }
     | ELam { exprType :: Type, exprAbsVar :: LIdent, exprBody :: Expr }
+    | EEqual { exprType :: Type, exprLhs :: Expr, exprRhs :: Expr }
+    | EImpl { exprType :: Type, exprLhs :: Expr, exprRhs :: Expr, exprConsequent :: Expr }
+    | EAll { exprType :: Type, exprAllArgs :: [LIdent], exprArgsType :: Type, exprProp :: Expr }
   deriving (Eq, Ord, Show, Read)
 
 data Alt = A Pat Expr

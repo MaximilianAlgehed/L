@@ -40,7 +40,7 @@ EApp.   Expr1  ::= Expr2 [Expr2];
 EEqual. Expr1  ::= Expr2 "=" Expr2;
 ELam.   Expr   ::= "\\" LIdent ":" Type "." Expr;
 EAll.   Expr   ::= "forall" [LIdent] ":" Type "." Expr;
-EImpl.  Expr   ::= Expr1 "=>" Expr;
+EImpl.  Expr   ::= Expr2 "=" Expr2 "=>" Expr;
 ECase.  Expr   ::= "case" Expr "of" [Alt];
 
 coercions Expr 2;
