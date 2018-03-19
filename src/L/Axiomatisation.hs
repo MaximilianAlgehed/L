@@ -19,11 +19,11 @@ import L.CoreLanguage
 import L.FunctionSymbols
 
 apps :: (Term F, Type) -> [Term F] -> Term F
-apps f ts = fst $ foldl (\(term, FunctionType _ typ) arg -> (typeTag typ $ build (app (fun (Function (Apply 2 hideApply))) [term, arg]), typ)) f ts
+apps f ts = fst $ foldl (\(term, FunctionType _ typ) arg -> (typeTag typ $ build (app (fun (Function (Apply hideApply))) [term, arg]), typ)) f ts
 
 apply :: Type -> F -> [Term F] -> Term F
 apply resT f ts = case f of
-  -- If it's a function pointer we explicitly apply it
+  -- If it's a function pointer we need to sprinkle `$`s in the application
   Function (FPtr t typ) -> apps (t, typ) ts
   _ -> typeTag resT (build (app (fun f) ts))
 
@@ -203,6 +203,28 @@ functionToEquations d = case d of
 
   _ -> throwError "Argument to functionToEquations is not a function declaration"
 
+proposition :: Proposition -> AM (Equation F)
+proposition p = case p of
+  Forall n t p -> do
+    introduceV n t
+    proposition p
+
+  Equal e0 e1 -> do
+    lhs <- exprToTerm e0
+    rhs <- exprToTerm e1
+    return (lhs :=: rhs)
+
+  Implies e0 e1 p -> do
+    e0 <- exprToTerm e0
+    e1 <- exprToTerm e1
+    lhs :=: rhs <- proposition p
+    return $ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs
+
+assume :: Name -> AM (String, Equation F)
+assume n@(Name nm) = do
+  thmDef <- getThm n
+  (nm,) <$> proposition thmDef
+
 axiomatise :: Program -> AM ()
 axiomatise ps = do
   -- Introduce all defintions and constructors to the context
@@ -311,27 +333,7 @@ structInductOnFirst prop =
       def <- getDef t
       structuralInduction t def prop
 
-proposition :: Proposition -> AM (Equation F)
-proposition p = case p of
-  Forall n t p -> do
-    introduceV n t
-    proposition p
 
-  Equal e0 e1 -> do
-    lhs <- exprToTerm e0
-    rhs <- exprToTerm e1
-    return (lhs :=: rhs)
-
-  Implies e0 e1 p -> do
-    e0 <- exprToTerm e0
-    e1 <- exprToTerm e1
-    lhs :=: rhs <- proposition p
-    return $ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs
-
-assume :: Name -> AM (String, Equation F)
-assume n@(Name nm) = do
-  thmDef <- getThm n
-  (nm,) <$> proposition thmDef
 
 {- Function to test the induction schema generation -}
 attack :: Name -> Program -> Either String [Problem]
