@@ -32,7 +32,7 @@ data FI = F { arityF :: Int
                 , invis :: Bool
                 , nameF :: Name }
         | FPtr (Term F) Type
-        | Apply { arityF :: Int, invis :: Bool }
+        | Apply { invis :: Bool }
         | FIfEq
         deriving (Ord, Eq, Show)
 
@@ -40,28 +40,29 @@ instance Sized FI where
   size _ = 1
 
 instance Arity FI where
-  arity FIfEq   = 4
-  arity (T _ _) = 1
-  arity (FT _)  = 2
-  arity (TT _)  = 2
-  arity f       = arityF f
+  arity FIfEq     = 4
+  arity (T _ _)   = 1
+  arity (FT _)    = 2
+  arity (TT _)    = 2
+  arity (Apply _) = 2
+  arity f         = arityF f
 
 instance Pretty FI where
   pPrint FIfEq           = text "ifEq"
   pPrint t@(T _ _)       = text . show . typ $ t
   pPrint (FT _)          = text "fun"
   pPrint (TT _)          = text "tt"
-  pPrint (Apply _ _)     = text "$"
+  pPrint (Apply _)       = text "$"
   pPrint f@(SFPtr _ _ _) = text . ("*" ++) . show . nameF $ f
   pPrint f               = text . ("'" ++) . show . nameF $ f
 
 instance EqualsBonus FI where
 
 instance PrettyTerm FI where
-  termStyle (TT iv) = if iv then implicitArguments 1 invisible else curried 
-  termStyle FIfEq = uncurried
-  termStyle (Apply _ iv) = if iv then invisible else infixStyle 0
-  termStyle f = if invis f then invisible else curried
+  termStyle (TT iv)    = if iv then implicitArguments 1 invisible else curried 
+  termStyle FIfEq      = uncurried
+  termStyle (Apply iv) = if iv then invisible else infixStyle 0
+  termStyle f          = if invis f then invisible else curried
 
 instance Ordered (Ext FI) where
   lessEq = Twee.KBO.lessEq
@@ -81,9 +82,9 @@ data Ext f =
   deriving (Eq, Ord, Show, Functor)
 
 instance Pretty f => Pretty (Ext f) where
-  pPrintPrec _ _ Minimal = text "_"
+  pPrintPrec _ _ Minimal        = text "_"
   pPrintPrec _ _ (Skolem (V n)) = text "sk" <> pPrint n
-  pPrintPrec l p (Function f) = pPrintPrec l p f
+  pPrintPrec l p (Function f)   = pPrintPrec l p f
 
 instance PrettyTerm f => PrettyTerm (Ext f) where
   termStyle (Function f) = termStyle f
