@@ -19,6 +19,7 @@ library
                      , L.FunctionSymbols
                      , L.Axiomatisation
                      , L.TypeCheck
+                     , L.Eval
                      , L.TAbs
                      , L.Normalisation
                      , L.Abs

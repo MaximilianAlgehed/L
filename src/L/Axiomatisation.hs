@@ -17,6 +17,7 @@ import qualified Twee.KBO
 
 import L.CoreLanguage
 import L.FunctionSymbols
+import qualified L.Eval as E
 
 apps :: (Term F, Type) -> [Term F] -> Term F
 apps f ts = fst $ foldl (\(term, FunctionType _ typ) arg -> (typeTag typ $ build (app (fun (Function (Apply hideApply))) [term, arg]), typ)) f ts
@@ -33,6 +34,7 @@ data AState = S { nameMap       :: M.Map Name F
                 , variableTypes :: M.Map Name Type
                 , definitions   :: M.Map Type [(Name, [Type])]
                 , theorems      :: M.Map Name Proposition
+                , funDefs       :: M.Map Name ([Name], Body)
                 , nextVarId     :: Int
                 , theory        :: [(String, Equation F)]
                 }
@@ -40,7 +42,7 @@ data AState = S { nameMap       :: M.Map Name F
 type AM a = StateT AState (Either String) a
 
 runAM :: AM a -> Either String a
-runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty 0 [])
+runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.empty 0 [])
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
@@ -50,8 +52,11 @@ addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n False) (nam
 addT :: Name -> (Type, [Type]) -> AM ()
 addT n t = modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
 
-addDef :: Type -> [(Name, [Type])] -> AM ()
-addDef t d = modify $ \s -> s { definitions = M.insert t d (definitions s) }
+addDDef :: Type -> [(Name, [Type])] -> AM ()
+addDDef t d = modify $ \s -> s { definitions = M.insert t d (definitions s) }
+
+addDef :: Name -> ([Name], Body) -> AM ()
+addDef n p = modify $ \s -> s { funDefs = M.insert n p (funDefs s) }
 
 addThm :: Name -> Proposition -> AM ()
 addThm n p = modify $ \s -> s { theorems = M.insert n p (theorems s) }
@@ -72,7 +77,7 @@ getF n = do
     Nothing -> do
       -- Lookup the function symbol
       nm <- gets nameMap
-      maybe (throwError "Unknown function symbol error") return (M.lookup n nm)
+      maybe (throwError $ "Unknown function symbol error: " ++ show n) return (M.lookup n nm)
 
 getT :: HasCallStack => Name -> AM (Type, [Type])
 getT n = do
@@ -166,7 +171,7 @@ patternToTerm t p = case p of
 
 functionToEquations :: Decl -> AM [(String, Equation F)]
 functionToEquations d = case d of
-  FunDecl f@(Name fname) xs body -> do
+  FunDecl f@(Name fname) t xs body -> do
     es <- case body of
             Case x ps -> sequence
                 [ do resetV
@@ -175,7 +180,7 @@ functionToEquations d = case d of
                      f       <- getF f 
                      xs_     <- mapM getV xs
                      typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
-                       []    -> throwError $ "Unkown variable error in case: " ++ show x
+                       []    -> throwError $ "Unknown variable error in case: " ++ show x
                        (t:_) -> return t
                      pat     <- patternToTerm typ pat
                      -- Replace the occurance of `x` with `pat` in the list of arguments
@@ -231,25 +236,29 @@ axiomatise ps = do
   -- Introduce all defintions and constructors to the context
   sequence_ [ do
                 -- Definitions
-                addDef (MonoType t) cs
+                addDDef (MonoType t) cs
                 -- Constructors
                 sequence [ do addF n (length ts)
                               addT n (MonoType t, ts)
                          | (n, ts) <- cs ]
             | DataDecl t cs <- ps ]
   -- Introduce all functions to the context
-  sequence_ [ addF n (length ns)
-            | FunDecl n ns _ <- ps ]
-  -- Introduce function types
-  sequence_ [ addT n t
-            | TypeDecl n t <- ps ] 
+  sequence_ [ addF n (length ns) >> addT n (splitCoreType t) >> addDef n (ns, body)
+            | FunDecl n t ns body <- ps ]
   -- Introduce all theorems to the context
   sequence_ [ addThm n p | TheoremDecl n p _ <- ps ]
   -- Compute axiomatisation from the functions
-  axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ _ _) <- ps ]
+  axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ t _ _) <- ps, fst (splitCoreType t) /= Formula ]
   -- Introduce the axiom for `IfEq`
   let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
   modify $ \s -> s { theory = eqAx : axs }
+
+-- | Partially evaluate a proposition to get it
+-- into "application-free" form
+normaliseProp :: Proposition -> AM Proposition
+normaliseProp p = do
+  ds <- gets funDefs
+  lift . E.runEval ds . E.normaliseProp $ p
 
 data Problem = Problem { goal        :: Equation F
                        , antecedents :: [(String, Equation F)]
@@ -315,7 +324,8 @@ structuralInduction t def prop = do
 
 -- Do structural induction on the first argument
 structInductOnFirst :: InductionSchema
-structInductOnFirst prop =
+structInductOnFirst prop = do
+  prop <- normaliseProp prop
   case splitProposition prop of
     ([], antecs, (lhs, rhs)) -> do
       -- The goal

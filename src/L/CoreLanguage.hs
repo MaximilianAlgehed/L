@@ -24,8 +24,7 @@ instance Show Type where
 
 -- All declarations
 data Decl = DataDecl    Name [(Name, [Type])]
-          | TypeDecl    Name (Type, [Type])
-          | FunDecl     Name [Name] Body
+          | FunDecl     Name Type [Name] Body
           | TheoremDecl Name Proposition [Name]
           deriving (Ord, Eq, Show)
 
@@ -41,7 +40,6 @@ data Proposition = Forall  Name Type Proposition
 -- Function bodies
 data Body = Case Name [(Pattern, Expr)]
           | E    Expr
-          | P    Proposition
           deriving (Ord, Eq, Show)
 
 -- Patterns on the form "C0 x0 x1 (C1 x2 ...) ..."
@@ -78,8 +76,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
       A.DData (A.UIdent n) cs -> [DataDecl (Name n) (map constructor cs)]
 
       A.DFun (A.LIdent n) t xs b ->
-        [ TypeDecl (Name n) (splitType t)
-        , FunDecl (Name n) [ Name x | A.LIdent x <- xs ] (body b)]
+        [ FunDecl (Name n) (transType t) [ Name x | A.LIdent x <- xs ] (body b)]
 
       A.DThm t -> [theorem t]
 

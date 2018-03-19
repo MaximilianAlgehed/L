@@ -41,13 +41,13 @@ theorem add-addFast
   forall n m : Nat. add n m = addFast n m
 using
   add-move-S;
---
---double : Nat -> Nat
---double n = case n of
---    Z   -> Z
---  | S n -> S (S (double n));
---
---theorem double-add
---  forall n : Nat. double n = add n n
---using
---  add-S-S;
+
+double : Nat -> Nat
+double n = case n of
+    Z   -> Z
+  | S n -> S (S (double n));
+
+theorem double-add
+  forall n : Nat. double n = add n n
+using
+  add-S-S;
