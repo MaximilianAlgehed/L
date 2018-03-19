@@ -84,9 +84,10 @@ getT n = do
       maybe (throwError "Unknown type error") return (M.lookup n nt)
 
 getDef :: Type -> AM [(Name, [Type])]
-getDef t = do
+getDef t@(MonoType _) = do
   defs <- gets definitions
   maybe (throwError "Unknown definition error") return (M.lookup t defs)
+getDef _ = return []
 
 introduceV :: Name -> Type -> AM ()
 introduceV n t = do
@@ -254,8 +255,7 @@ data Problem = Problem { goal        :: Equation F
                        , antecedents :: [(String, Equation F)]
                        , hypotheses  :: [(String, Equation F)]
                        , lemmas      :: [(String, Equation F)]
-                       , background  :: [(String, Equation F)]
-                       }
+                       , background  :: [(String, Equation F)] }
 
 type InductionSchema = Proposition -> AM [Problem]
 
@@ -332,8 +332,6 @@ structInductOnFirst prop =
     ((_, t):_, _, _) -> do
       def <- getDef t
       structuralInduction t def prop
-
-
 
 {- Function to test the induction schema generation -}
 attack :: Name -> Program -> Either String [Problem]

@@ -34,9 +34,9 @@ data Pat = PVar Type LIdent | PCon UIdent [Pat]
   deriving (Eq, Ord, Show, Read)
 
 split :: Type -> (Type, [Type])
-split (MonoType ui) = (MonoType ui, [])
 split (FunType a r) =
   let (res, as) = split r in (res, a : as)
+split t = (t, [])
 
 partialType :: Expr -> Bool
 partialType e = case exprType e of

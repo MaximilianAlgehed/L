@@ -20,8 +20,11 @@ using
 lemma add-move-S
   forall n m : Nat. add (S n) m = add n (S m);
 
+commutative : (Nat -> Nat -> Nat) -> Formula
+commutative f = forall n m : Nat. f n m = f m n;
+
 theorem add-comm
-  forall n m : Nat. add n m = add m n
+  commutative add
 using
   add-S add-Z;
 
@@ -38,13 +41,13 @@ theorem add-addFast
   forall n m : Nat. add n m = addFast n m
 using
   add-move-S;
-
-double : Nat -> Nat
-double n = case n of
-    Z   -> Z
-  | S n -> S (S (double n));
-
-theorem double-add
-  forall n : Nat. double n = add n n
-using
-  add-S-S;
+--
+--double : Nat -> Nat
+--double n = case n of
+--    Z   -> Z
+--  | S n -> S (S (double n));
+--
+--theorem double-add
+--  forall n : Nat. double n = add n n
+--using
+--  add-S-S;

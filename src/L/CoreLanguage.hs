@@ -15,6 +15,7 @@ type Program = [Decl]
 -- Types
 data Type = MonoType Name
           | FunctionType Type Type
+          | Formula
           deriving (Ord, Eq)
 
 instance Show Type where
@@ -32,6 +33,9 @@ data Decl = DataDecl    Name [(Name, [Type])]
 data Proposition = Forall  Name Type Proposition
                  | Equal   Expr Expr
                  | Implies Expr Expr Proposition
+                 -- Things introduced by expressions
+                 | PFApp   Name [Expr]
+                 | PVar    Name
                  deriving (Ord, Eq, Show)
 
 -- Function bodies
@@ -48,24 +52,23 @@ data Pattern = ConstructorPattern Name [Pattern]
 -- Expressions
 data Expr = FApp Name [Expr]
           | Var  Name
+          | Prop Proposition
           deriving (Ord, Eq, Show)
 
 {- Translate surface syntax to core syntax -}
 splitType :: A.Type -> (Type, [Type])
-splitType = go []
-  where
-    go ts (A.MonoType (A.UIdent t)) = (MonoType (Name t), reverse ts)
-    go ts (A.FunType t0 t1)        = go (transType t0 : ts) t1
+splitType = splitCoreType . transType 
 
 splitCoreType :: Type -> (Type, [Type])
 splitCoreType = go []
   where
-    go ts (MonoType n)         = (MonoType n, reverse ts)
     go ts (FunctionType t0 t1) = go (t0 : ts) t1
+    go ts t                    = (t, reverse ts)
 
 transType :: A.Type -> Type
 transType (A.MonoType (A.UIdent t)) = MonoType (Name t)
 transType (A.FunType t0 t1) = FunctionType (transType t0) (transType t1)
+transType A.Formula = Formula
 
 surfaceToCore :: A.Program -> Program
 surfaceToCore (A.P ds) = concatMap decl ds
@@ -96,6 +99,11 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
       A.EImpl _ el er p -> Implies (expr el) (expr er) (proposition p)
 
+      _                 -> case expr p of
+        Var n     -> PVar n 
+        FApp n xs -> PFApp n xs
+        Prop p    -> p
+
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map transType ts)
 
@@ -118,6 +126,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
       A.EVar _ (A.LIdent x) -> Var (Name x)
       A.ECon _ (A.UIdent c) -> FApp (Name c) []
       A.EApp _ fun es       -> FApp (name fun) (map expr es)
+      _                     -> Prop (proposition e)
       where
         name (A.EVar _ (A.LIdent n)) = Name n
         name (A.ECon _ (A.UIdent n)) = Name n

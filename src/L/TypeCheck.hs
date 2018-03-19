@@ -141,19 +141,23 @@ instance TypeCheckable Expr where
     EEqual l r  -> do
       (tl, l) <- typeCheck Nothing l
       (tr, r) <- typeCheck Nothing r
-      unless (tl == tr) $ fail "Type mismatch on equality"
+      unless (tl == tr)    $ fail "Type mismatch on equality"
+      when (tl == Formula) $ fail "Can't compare Formulas for equality"
       return (Formula, T.EEqual Formula l r) 
 
     EAll xs t e -> do
+      push
       mapM_ (flip introduce t) xs
-      (t, e) <- typeCheck Nothing e
-      unless (t == Formula) $ fail "Expected Formula result in forall"
+      (t', e) <- typeCheck Nothing e
+      pop
+      unless (t' == Formula) $ fail "Expected Formula result in forall"
       return (Formula, T.EAll Formula xs t e)
 
     EImpl l r e -> do
       (tl, l) <- typeCheck Nothing l
       (tr, r) <- typeCheck Nothing r
       unless (tl == tr) $ fail "Type mismatch on equality"
+      when (tl == Formula) $ fail "Can't compare Formulas for equality"
       (te, e) <- typeCheck Nothing e
       unless (te == Formula) $ fail "Expected Formula result in implication"
       return (Formula, T.EImpl Formula l r e)
