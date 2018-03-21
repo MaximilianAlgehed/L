@@ -41,6 +41,7 @@ EApp.   Expr1  ::= Expr2 [Expr2];
 EEqual. Expr1  ::= Expr1 "=" Expr1;
 ELam.   Expr   ::= "\\" LIdent ":" Type "." Expr;
 EAll.   Expr   ::= "forall" [LIdent] ":" Type "." Expr;
+EEx.    Expr   ::= "exists" [LIdent] ":" Type "." Expr;
 EImpl.  Expr   ::= Expr1 "=" Expr1 "=>" Expr;
 ECase.  Expr   ::= "case" Expr "of" [Alt];
 

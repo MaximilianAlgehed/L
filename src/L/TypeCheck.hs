@@ -153,6 +153,14 @@ instance TypeCheckable Expr where
       unless (t' == Formula) $ fail "Expected Formula result in forall"
       return (Formula, T.EAll Formula xs t e)
 
+    EEx xs t e -> do
+      push
+      mapM_ (flip introduce t) xs
+      (t', e) <- typeCheck Nothing e
+      pop
+      unless (t' == Formula) $ fail "Expected Formula result in exists"
+      return (Formula, T.EEx Formula xs t e)
+
     EImpl l r e -> do
       (tl, l) <- typeCheck Nothing l
       (tr, r) <- typeCheck Nothing r

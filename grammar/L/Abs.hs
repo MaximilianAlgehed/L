@@ -38,6 +38,7 @@ data Expr
     | EEqual Expr Expr
     | ELam LIdent Type Expr
     | EAll [LIdent] Type Expr
+    | EEx [LIdent] Type Expr
     | EImpl Expr Expr Expr
     | ECase Expr [Alt]
   deriving (Eq, Ord, Show, Read)

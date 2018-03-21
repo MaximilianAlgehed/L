@@ -128,6 +128,7 @@ instance Print Expr where
     EEqual expr1 expr2 -> prPrec i 1 (concatD [prt 1 expr1, doc (showString "="), prt 1 expr2])
     ELam lident type_ expr -> prPrec i 0 (concatD [doc (showString "\\"), prt 0 lident, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 expr])
     EAll lidents type_ expr -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lidents, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 expr])
+    EEx lidents type_ expr -> prPrec i 0 (concatD [doc (showString "exists"), prt 0 lidents, doc (showString ":"), prt 0 type_, doc (showString "."), prt 0 expr])
     EImpl expr1 expr2 expr3 -> prPrec i 0 (concatD [prt 1 expr1, doc (showString "="), prt 1 expr2, doc (showString "=>"), prt 0 expr3])
     ECase expr alts -> prPrec i 0 (concatD [doc (showString "case"), prt 0 expr, doc (showString "of"), prt 0 alts])
   prtList 2 [x] = (concatD [prt 2 x])

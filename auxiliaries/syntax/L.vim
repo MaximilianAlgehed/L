@@ -16,7 +16,7 @@ syn match   hsFloat		"\v<[0-9]%(_*[0-9])*\.[0-9]%(_*[0-9])*%(_*[eE][-+]?[0-9]%(_
 " because otherwise they would match as keywords at the start of a
 " "literate" comment (see lhs.vim).
 syn match hsStructure		"\<\(data\|theorem\|lemma\|using\)\>"
-syn match hsStatement		"\<\(case\|of\|forall\)\>"
+syn match hsStatement		"\<\(case\|of\|forall\|exists\)\>"
 
 " Comments
 syn match   hsLineComment      "---*\([^-!#$%&\*\+./<=>\?@\\^|~].*\)\?$"

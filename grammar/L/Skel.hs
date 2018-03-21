@@ -45,6 +45,7 @@ transExpr x = case x of
   EEqual expr1 expr2 -> failure x
   ELam lident type_ expr -> failure x
   EAll lidents type_ expr -> failure x
+  EEx lidents type_ expr -> failure x
   EImpl expr1 expr2 expr3 -> failure x
   ECase expr alts -> failure x
 transAlt :: Alt -> Result
