@@ -99,14 +99,16 @@ data Ext f =
     Minimal
     -- | A Skolem function.
   | Skolem T.Var
+  | Existential T.Var
     -- | An ordinary function symbol.
   | Function f
   deriving (Eq, Ord, Show, Functor)
 
 instance Pretty f => Pretty (Ext f) where
-  pPrintPrec _ _ Minimal        = text "_"
-  pPrintPrec _ _ (Skolem (V n)) = text "sk" <> pPrint n
-  pPrintPrec l p (Function f)   = pPrintPrec l p f
+  pPrintPrec _ _ Minimal             = text "_"
+  pPrintPrec _ _ (Skolem (V n))      = text "sk" <> pPrint n
+  pPrintPrec _ _ (Existential (V n)) = text "ex" <> pPrint n
+  pPrintPrec l p (Function f)        = pPrintPrec l p f
 
 instance PrettyTerm f => PrettyTerm (Ext f) where
   termStyle (Function f) = termStyle f

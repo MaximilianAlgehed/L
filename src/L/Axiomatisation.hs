@@ -37,7 +37,7 @@ data AState = S { nameMap       :: M.Map Name F
                 , theorems      :: M.Map Name Proposition
                 , funDefs       :: M.Map Name ([Name], Body)
                 , nextVarId     :: Int
-                , nextSkId      :: Int
+                , nextExId      :: Int
                 , theory        :: [(String, Equation F)]
                 }
 
@@ -110,6 +110,13 @@ introduceSk n t = do
                    , variableTypes = M.insert n t (variableTypes s)
                    , nextVarId     = id + 1 } 
 
+introduceEx :: Name -> Type -> AM ()
+introduceEx n t = do
+  id <- gets nextExId 
+  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . con . fun . Existential . V $ id) (variableMap s)
+                   , variableTypes = M.insert n t (variableTypes s)
+                   , nextExId      = id + 1 } 
+
 freshVar :: Type -> AM (Term F)
 freshVar t = do
   id <- gets nextVarId
@@ -133,8 +140,8 @@ getV n = do
 
 freshSkolem :: Type -> AM (Term F)
 freshSkolem t = do
-  idx <- gets nextSkId 
-  modify $ \s -> s { nextSkId = idx + 1 }
+  idx <- gets nextVarId 
+  modify $ \s -> s { nextVarId = idx + 1 }
   return . typeTag t . build . con . skolem . V $ idx
 
 tt :: Term F -> Term F -> Term F
@@ -218,7 +225,7 @@ proposition p =  case p of
     proposition p
 
   Exists n t p -> do
-    introduceSk n t
+    introduceEx n t
     proposition p
 
   Equal e0 e1 -> do
@@ -258,7 +265,7 @@ axiomatise ps = do
   -- Introduce the axiom for `IfEq`
   let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
   let eqlAx = ("def. (==)", build (app (fun (Function F_equals)) (map var [V 0, V 0])) :=: (build . con . fun . Function $ F_true))
-  modify $ \s -> s { theory = {-eqlAx : -} eqAx : axs }
+  modify $ \s -> s { theory = eqlAx : eqAx : axs }
 
 -- | Partially evaluate a proposition to get it
 -- into "application-free" form
@@ -293,7 +300,7 @@ splitProposition p = do
             go as p
     
           Exists n t p -> do
-            introduceSk n t
+            introduceEx n t
             go as p
     
           Equal _ _ -> return as
@@ -346,6 +353,7 @@ substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
 -- to be proven is of type `t` with definition `def`
 structuralInduction :: Type -> [(Name, [Type])] -> InductionSchema
 structuralInduction t def (Forall n _ prop) = do
+  modify $ \s -> s { nextVarId = 0 }
   -- Introduce the fist type variable as just a variable
   idx <- gets nextVarId 
   modify $ \s -> s { nextVarId     = idx + 1 } 
