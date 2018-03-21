@@ -130,6 +130,10 @@ normaliseExpr f inputExpr = case inputExpr of
         DFun nf t' (map fst ctx ++ [x]) e
       return (app t (EVar t' nf) (map (uncurry (flip EVar)) ctx), ds)
 
+    EAll t xs t' e -> (\(e', ds) -> (EAll t xs t' e', ds)) <$> normaliseExpr f e
+
+    EEx t xs t' e  -> (\(e', ds) -> (EEx t xs t' e', ds)) <$> normaliseExpr f e
+
     _ -> return (inputExpr, [])
 
 free :: Expr -> NM [(LIdent, Type)]
@@ -145,6 +149,10 @@ free e = case e of
   ECase t ec as -> union <$> free ec <*> (foldr union [] <$> sequence [ (\\ vars p) <$> free e | A p e <- as ])
 
   ELam t v e -> filter ((/= v) . fst) <$> free e
+
+  EAll _ xs _ e -> filter (flip notElem xs . fst) <$> free e
+
+  EEx _ xs _ e -> filter (flip notElem xs . fst) <$> free e
 
 vars :: Pat -> [(LIdent, Type)]
 vars p = case p of

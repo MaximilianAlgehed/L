@@ -7,6 +7,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import qualified Data.Map as M
 import Data.Maybe
+import Data.List
 
 import Twee hiding (goal)
 import qualified Twee.Term as T
@@ -36,13 +37,14 @@ data AState = S { nameMap       :: M.Map Name F
                 , theorems      :: M.Map Name Proposition
                 , funDefs       :: M.Map Name ([Name], Body)
                 , nextVarId     :: Int
+                , nextSkId      :: Int
                 , theory        :: [(String, Equation F)]
                 }
 
 type AM a = StateT AState (Either String) a
 
 runAM :: AM a -> Either String a
-runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.empty 0 [])
+runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.empty 0 0 [])
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
@@ -101,6 +103,13 @@ introduceV n t = do
                    , variableTypes = M.insert n t (variableTypes s)
                    , nextVarId     = id + 1 } 
 
+introduceSk :: Name -> Type -> AM ()
+introduceSk n t = do
+  id <- gets nextSkId 
+  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . var . V $ id) (variableMap s)
+                   , variableTypes = M.insert n t (variableTypes s)
+                   , nextSkId      = id + 1 } 
+
 freshVar :: Type -> AM (Term F)
 freshVar t = do
   id <- gets nextVarId
@@ -128,8 +137,8 @@ resetV = modify $ \s -> s { variableMap   = M.empty
 
 freshSkolem :: Type -> AM (Term F)
 freshSkolem t = do
-  idx <- gets nextVarId
-  modify $ \s -> s { nextVarId = idx + 1 }
+  idx <- gets nextSkId 
+  modify $ \s -> s { nextSkId = idx + 1 }
   return . typeTag t . build . con . skolem . V $ idx
 
 tt :: Term F -> Term F -> Term F
@@ -141,13 +150,13 @@ typeTag = tt . (build . go)
     go t@(MonoType _)       = con . fun . Function $ T t hideTypeTags
     go (FunctionType t0 t1) = app (fun $ Function (FT hideTypeTags)) $ [ go t0 , go t1 ]
 
-exprToTerm :: HasCallStack => Expr -> AM (Term F)
-exprToTerm e = case e of
+exprToTerm :: HasCallStack => (Name -> Bool) -> Expr -> AM (Term F)
+exprToTerm g e = case e of
   FApp n es -> do
     f <- getF n
     (tres, targs) <- getT n
     let t = foldr FunctionType tres (drop (length es) targs)
-    es <- mapM exprToTerm es
+    es <- mapM g es
     if length es == length targs then
       return $ apply tres f es
     else
@@ -156,7 +165,9 @@ exprToTerm e = case e of
         Function (FPtr f typ) -> return $ apps (f, typ) es
         _                     -> return $ apps (typeTag typ (specific n), typ) es
 
-  Var n -> getV n
+  Var n
+    | g n       -> skolem <$> getV n
+    | otherwise -> getV n 
 
 patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
@@ -185,7 +196,7 @@ functionToEquations d = case d of
                      pat     <- patternToTerm typ pat
                      -- Replace the occurance of `x` with `pat` in the list of arguments
                      let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
-                     e       <- exprToTerm expr
+                     e       <- exprToTerm (const False) expr
                      return $ ("def. " ++ fname, apply t f xs' :=: e)
                 | (pat, expr) <- ps ]
   
@@ -194,10 +205,10 @@ functionToEquations d = case d of
               resetV
               (t, ts) <- getT f
               sequence [ introduceV x t | (x, t) <- zip xs ts ]
-              f  <- getF f
-              xs <- mapM getV xs
-              e  <- exprToTerm e
-              return [("def. " ++ fname, apply t f xs :=: e)]
+              f   <- getF f
+              xs' <- mapM getV xs
+              e   <- exprToTerm (const False) e
+              return [("def. " ++ fname, apply t f xs' :=: e)]
     resetV
     (t, ts) <- getT f
     sequence [ introduceV x t | (x, t) <- zip xs ts ]
@@ -210,19 +221,23 @@ functionToEquations d = case d of
   _ -> throwError "Argument to functionToEquations is not a function declaration"
 
 proposition :: Proposition -> AM (Equation F)
-proposition p = case p of
+proposition p =  case p of
   Forall n t p -> do
     introduceV n t
     proposition p
 
+  Exists n t p -> do
+    introduceSk n t
+    proposition p
+
   Equal e0 e1 -> do
-    lhs <- exprToTerm e0
-    rhs <- exprToTerm e1
+    lhs <- exprToTerm (const False) e0
+    rhs <- exprToTerm (const False) e1
     return (lhs :=: rhs)
 
   Implies e0 e1 p -> do
-    e0 <- exprToTerm e0
-    e1 <- exprToTerm e1
+    e0 <- exprToTerm (const FalsE) e0
+    e1 <- exprToTerm (const FalsE) e1
     lhs :=: rhs <- proposition p
     return $ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs
 
@@ -268,17 +283,23 @@ data Problem = Problem { goal        :: Equation F
 
 type InductionSchema = Proposition -> AM [Problem]
 
-splitProposition :: Proposition -> ([(Name, Type)], [(Expr, Expr)], (Expr, Expr))
-splitProposition p = case p of
-  Forall n t p ->
-    let (vt, antecs, lr) = splitProposition p in
-    ((n, t) : vt, antecs, lr)
+splitProposition :: Proposition -> ([(Name, Type, Bool)], [([Name], Expr, Expr)], (Expr, Expr))
+splitProposition = go []
+  where
+    go xs p = case p of
+      Forall n t p ->
+        let (vt, antecs, lr) = go (xs \\ [n]) p in
+        ((n, t, True) : vt, antecs, lr)
 
-  Equal lhs rhs -> ([], [], (lhs, rhs))
+      Exists n t p ->
+        let (vt, antecs, lr) = go (n:xs) p in
+        ((n, t, False) : vt, antecs, lr)
 
-  Implies e0 e1 p ->
-    let (vt, antecs, lr) = splitProposition p in
-    (vt, (e0, e1) : antecs, lr)
+      Equal lhs rhs -> ([], [], (lhs, rhs))
+
+      Implies e0 e1 p ->
+        let (vt, antecs, lr) = go xs p in
+        (vt, (xs, e0, e1) : antecs, lr)
 
 
 substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
@@ -291,15 +312,16 @@ structuralInduction t def prop = do
   let (vt, antecs, (lhs, rhs)) = splitProposition prop
   -- Introduce all the variables except for the one we are doing
   -- induction over (the first one)
-  mapM (uncurry introduceV) $ drop 1 vt
+  mapM (\(n, t, f) -> if f then introduceV n t else introduceSk n t) $ drop 1 vt
   -- Introduce the fist type variable as just a variable
   idx <- gets nextVarId 
   modify $ \s -> s { nextVarId     = idx + 1 } 
-  mapM (\n -> mapVarTo n (build . var $ V idx)) (fst <$> take 1 vt)
+  mapM (\n -> mapVarTo n (build . var $ V idx)) ((\(n, _, _) -> n) <$> take 1 vt)
   -- The goal
-  goal <- (:=:) <$> exprToTerm lhs <*> exprToTerm rhs
+  let existsVars = flip elem [ n | (n, _, False) <- vt ]
+  goal <- (:=:) <$> exprToTerm existsVars lhs <*> exprToTerm existsVars rhs
   -- All antecedents
-  ants <- sequence [ (:=:) <$> exprToTerm lhs <*> exprToTerm rhs | (lhs, rhs) <- antecs ]
+  ants <- sequence [ (:=:) <$> exprToTerm (flip elem vs) lhs <*> exprToTerm (flip elem vs) rhs | (vs, lhs, rhs) <- antecs ]
   -- The underlying theory
   thy <- gets theory
   sequence
@@ -314,8 +336,8 @@ structuralInduction t def prop = do
         c <- getF cn
         let term = apply t c vars
         -- Antecedents
-        let antecs = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) <$> ants
-        return $ Problem { goal = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) $ goal
+        let antecs = substEq (fromJust $ T.listToSubst [(V idx, term)]) <$> ants
+        return $ Problem { goal = substEq (fromJust $ T.listToSubst [(V idx, term)]) $ goal
                          , antecedents = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] antecs]
                          , hypotheses = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih) | (ih, i) <- zip ihs [0..] ]
                          , background = thy
@@ -329,17 +351,16 @@ structInductOnFirst prop = do
   case splitProposition prop of
     ([], antecs, (lhs, rhs)) -> do
       -- The goal
-      g <- (:=:) <$> exprToTerm lhs <*> exprToTerm rhs
+      g <- (:=:) <$> exprToTerm (const False) lhs <*> exprToTerm (const False) rhs
       -- All antecedents
-      ants <- sequence [ (:=:) <$> exprToTerm lhs <*> exprToTerm rhs ]
+      ants <- sequence [ (:=:) <$> exprToTerm (const False) lhs <*> exprToTerm (const False) rhs | ([], lhs, rhs) <- antecs ]
       -- The background
       thy <- gets theory
       -- skolemised antecedents 
-      let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] (substEq (con . skolem) <$> ants) ]
+      let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
       -- skolemised goal
-      let finalGoal = substEq (con . skolem) g
-      return [Problem { goal = finalGoal, antecedents = antecs, background = thy, hypotheses = [], lemmas = [] }]
-    ((_, t):_, _, _) -> do
+      return [Problem { goal = g, antecedents = antecs, background = thy, hypotheses = [], lemmas = [] }]
+    ((_, t, True):_, _, _) -> do
       def <- getDef t
       structuralInduction t def prop
 

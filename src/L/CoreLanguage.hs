@@ -30,6 +30,7 @@ data Decl = DataDecl    Name [(Name, [Type])]
 
 -- Propositions
 data Proposition = Forall  Name Type Proposition
+                 | Exists  Name Type Proposition
                  | Equal   Expr Expr
                  | Implies Expr Expr Proposition
                  -- Things introduced by expressions
