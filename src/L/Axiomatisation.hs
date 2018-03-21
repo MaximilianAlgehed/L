@@ -182,41 +182,44 @@ patternToTerm t p = case p of
     getV n
 
 functionToEquations :: Decl -> AM [(String, Equation F)]
-functionToEquations d = case d of
-  FunDecl f@(Name fname) t xs body -> do
-    es <- case body of
-            Case x ps -> sequence
-                [ do (t, ts) <- getT f
-                     sequence [ introduceV x t | (x, t) <- zip xs ts ]
-                     f       <- getF f 
-                     xs_     <- mapM getV xs
-                     typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
-                       []    -> throwError $ "Unknown variable error in case: " ++ show x
-                       (t:_) -> return t
-                     pat     <- patternToTerm typ pat
-                     -- Replace the occurance of `x` with `pat` in the list of arguments
-                     let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
-                     e       <- exprToTerm expr
-                     return $ ("def. " ++ fname, apply t f xs' :=: e)
-                | (pat, expr) <- ps ]
-  
-            E e       -> do
-              -- Reset the variable context
-              (t, ts) <- getT f
-              sequence [ introduceV x t | (x, t) <- zip xs ts ]
-              f   <- getF f
-              xs' <- mapM getV xs
-              e   <- exprToTerm e
-              return [("def. " ++ fname, apply t f xs' :=: e)]
-    (t, ts) <- getT f
-    sequence [ introduceV x t | (x, t) <- zip xs ts ]
-    f'      <- getF f 
-    xs_     <- mapM getV xs
-    let typ = foldr FunctionType t ts
-    let eq = ("apply " ++ fname, apps (typeTag typ (specific f), typ) xs_ :=: apply t f' xs_)
-    return $ eq:es
+functionToEquations d = do
+  case d of
+    FunDecl f@(Name fname) t xs body -> do
+      es <- case body of
+              Case x ps -> sequence
+                  [ do modify $ \s -> s { nextVarId = 0 }
+                       (t, ts) <- getT f
+                       sequence [ introduceV x t | (x, t) <- zip xs ts ]
+                       f       <- getF f 
+                       xs_     <- mapM getV xs
+                       typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
+                         []    -> throwError $ "Unknown variable error in case: " ++ show x
+                         (t:_) -> return t
+                       pat     <- patternToTerm typ pat
+                       -- Replace the occurance of `x` with `pat` in the list of arguments
+                       let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
+                       e       <- exprToTerm expr
+                       return $ ("def. " ++ fname, apply t f xs' :=: e)
+                  | (pat, expr) <- ps ]
+    
+              E e       -> do
+                -- Reset the variable context
+                (t, ts) <- getT f
+                sequence [ introduceV x t | (x, t) <- zip xs ts ]
+                f   <- getF f
+                xs' <- mapM getV xs
+                e   <- exprToTerm e
+                return [("def. " ++ fname, apply t f xs' :=: e)]
+      modify $ \s -> s { nextVarId = 0 }
+      (t, ts) <- getT f
+      sequence [ introduceV x t | (x, t) <- zip xs ts ]
+      f'      <- getF f 
+      xs_     <- mapM getV xs
+      let typ = foldr FunctionType t ts
+      let eq = ("apply " ++ fname, apps (typeTag typ (specific f), typ) xs_ :=: apply t f' xs_)
+      return $ eq:es
 
-  _ -> throwError "Argument to functionToEquations is not a function declaration"
+    _ -> throwError "Argument to functionToEquations is not a function declaration"
 
 proposition :: Proposition -> AM (Equation F)
 proposition p =  case p of
@@ -241,6 +244,7 @@ proposition p =  case p of
 
 assume :: Name -> AM (String, Equation F)
 assume n@(Name nm) = do
+  modify $ \s -> s { nextVarId = 0 }
   thmDef <- getThm n
   (nm,) <$> proposition thmDef
 
