@@ -61,6 +61,8 @@ main = do
                  mapM_ (uncurry present) (hypotheses p)
                  unless (null (antecedents p)) $ putStrLn "-- Antecedents --"
                  mapM_ (uncurry present) (antecedents p) 
+                 putStrLn "-- Goal --"
+                 prettyPrint (goal p)
                  let axioms = [ Axiom i axName ax
                               | ((axName, ax), i) <- zip (hypotheses p ++ antecedents p ++ lemmas p ++ background p) [0..] ]
                  let g = T.goal 0 (problemName ++ ", case " ++ show caseN) $ goal p 
