@@ -4,7 +4,7 @@ module Main where
 import System.Environment
 import Control.Monad.State
 
-import Twee.Base hiding (subst)
+import Twee.Base hiding (subst, Function)
 import Twee.Term
 import Twee.Equation
 import Twee.Proof (Axiom(..))
@@ -61,22 +61,15 @@ main = do
                  mapM_ (uncurry present) (hypotheses p)
                  unless (null (antecedents p)) $ putStrLn "-- Antecedents --"
                  mapM_ (uncurry present) (antecedents p) 
-                 putStrLn "-- Goal --"
-                 prettyPrint (goal p)
                  let axioms = [ Axiom i axName ax
                               | ((axName, ax), i) <- zip (hypotheses p ++ antecedents p ++ lemmas p ++ background p) [0..] ]
-                 let lhs :=: rhs = goal p
-                 let g = T.goal 0 (problemName ++ ", case " ++ show caseN) (goal p)
+                 let g = T.goal 0 (problemName ++ ", case " ++ show caseN) $ goal p 
                  let st = addGoal cfg (foldr (\a s -> addAxiom cfg s a) initialState axioms) g
                  completedState <- normaliseGoals <$> complete (Output $ \_ -> return ()) cfg st
-                 putStrLn "\n"
                  if solved completedState then do
                    putStrLn "*** closed goal ***\n"
                    prettyPrint (Proof.present Proof.defaultConfig (solutions completedState))
                  else do
-                   putStrLn "Didn't close goal:"
-                   let lhs :=: rhs = goal p
-                   prettyPrint $  result (normaliseTerm completedState lhs)
-                              :=: result (normaliseTerm completedState rhs)
+                   putStrLn "Didn't close goal"
                  putStrLn "\n"
             | (p, caseN) <- zip attacked [0..] ]

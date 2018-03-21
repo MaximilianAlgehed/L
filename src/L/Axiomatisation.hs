@@ -11,7 +11,7 @@ import Data.List
 
 import Twee hiding (goal)
 import qualified Twee.Term as T
-import Twee.Term hiding (Var, F)
+import Twee.Term hiding (Var, F, subst)
 import Twee.Base hiding (Var, F, Function)
 import Twee.Equation
 import qualified Twee.KBO
@@ -105,10 +105,10 @@ introduceV n t = do
 
 introduceSk :: Name -> Type -> AM ()
 introduceSk n t = do
-  id <- gets nextSkId 
-  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . var . V $ id) (variableMap s)
+  id <- gets nextVarId
+  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . con . skolem . V $ id) (variableMap s)
                    , variableTypes = M.insert n t (variableTypes s)
-                   , nextSkId      = id + 1 } 
+                   , nextVarId     = id + 1 } 
 
 freshVar :: Type -> AM (Term F)
 freshVar t = do
@@ -131,10 +131,6 @@ getV n = do
       return (typeTag (foldr FunctionType (fst t) (snd t)) $ specific n)
     Just v  -> return v
 
-resetV :: AM ()
-resetV = modify $ \s -> s { variableMap   = M.empty
-                          , nextVarId     = 0 }
-
 freshSkolem :: Type -> AM (Term F)
 freshSkolem t = do
   idx <- gets nextSkId 
@@ -150,13 +146,13 @@ typeTag = tt . (build . go)
     go t@(MonoType _)       = con . fun . Function $ T t hideTypeTags
     go (FunctionType t0 t1) = app (fun $ Function (FT hideTypeTags)) $ [ go t0 , go t1 ]
 
-exprToTerm :: HasCallStack => (Name -> Bool) -> Expr -> AM (Term F)
-exprToTerm g e = case e of
+exprToTerm :: HasCallStack => Expr -> AM (Term F)
+exprToTerm e = case e of
   FApp n es -> do
     f <- getF n
     (tres, targs) <- getT n
     let t = foldr FunctionType tres (drop (length es) targs)
-    es <- mapM g es
+    es <- mapM exprToTerm es
     if length es == length targs then
       return $ apply tres f es
     else
@@ -165,9 +161,7 @@ exprToTerm g e = case e of
         Function (FPtr f typ) -> return $ apps (f, typ) es
         _                     -> return $ apps (typeTag typ (specific n), typ) es
 
-  Var n
-    | g n       -> skolem <$> getV n
-    | otherwise -> getV n 
+  Var n -> getV n 
 
 patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
@@ -185,8 +179,7 @@ functionToEquations d = case d of
   FunDecl f@(Name fname) t xs body -> do
     es <- case body of
             Case x ps -> sequence
-                [ do resetV
-                     (t, ts) <- getT f
+                [ do (t, ts) <- getT f
                      sequence [ introduceV x t | (x, t) <- zip xs ts ]
                      f       <- getF f 
                      xs_     <- mapM getV xs
@@ -196,20 +189,18 @@ functionToEquations d = case d of
                      pat     <- patternToTerm typ pat
                      -- Replace the occurance of `x` with `pat` in the list of arguments
                      let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
-                     e       <- exprToTerm (const False) expr
+                     e       <- exprToTerm expr
                      return $ ("def. " ++ fname, apply t f xs' :=: e)
                 | (pat, expr) <- ps ]
   
             E e       -> do
               -- Reset the variable context
-              resetV
               (t, ts) <- getT f
               sequence [ introduceV x t | (x, t) <- zip xs ts ]
               f   <- getF f
               xs' <- mapM getV xs
-              e   <- exprToTerm (const False) e
+              e   <- exprToTerm e
               return [("def. " ++ fname, apply t f xs' :=: e)]
-    resetV
     (t, ts) <- getT f
     sequence [ introduceV x t | (x, t) <- zip xs ts ]
     f'      <- getF f 
@@ -231,13 +222,13 @@ proposition p =  case p of
     proposition p
 
   Equal e0 e1 -> do
-    lhs <- exprToTerm (const False) e0
-    rhs <- exprToTerm (const False) e1
+    lhs <- exprToTerm e0
+    rhs <- exprToTerm e1
     return (lhs :=: rhs)
 
   Implies e0 e1 p -> do
-    e0 <- exprToTerm (const FalsE) e0
-    e1 <- exprToTerm (const FalsE) e1
+    e0 <- exprToTerm e0
+    e1 <- exprToTerm e1
     lhs :=: rhs <- proposition p
     return $ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs
 
@@ -266,7 +257,8 @@ axiomatise ps = do
   axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ t _ _) <- ps, fst (splitCoreType t) /= Formula ]
   -- Introduce the axiom for `IfEq`
   let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
-  modify $ \s -> s { theory = eqAx : axs }
+  let eqlAx = ("def. (==)", build (app (fun (Function F_equals)) (map var [V 0, V 0])) :=: (build . con . fun . Function $ F_true))
+  modify $ \s -> s { theory = eqlAx : eqAx : axs }
 
 -- | Partially evaluate a proposition to get it
 -- into "application-free" form
@@ -283,46 +275,78 @@ data Problem = Problem { goal        :: Equation F
 
 type InductionSchema = Proposition -> AM [Problem]
 
-splitProposition :: Proposition -> ([(Name, Type, Bool)], [([Name], Expr, Expr)], (Expr, Expr))
-splitProposition = go []
+splitProposition :: Proposition -> AM ([Equation F], Equation F, (Term F, Term F))
+splitProposition p = do
+  as <- produceAntecs p
+  vm <- gets variableMap
+  ih <- produceIH p
+  modify $ \s -> s { variableMap = vm }
+  g  <- produceGoal p
+  return (as, ih, g)
   where
-    go xs p = case p of
-      Forall n t p ->
-        let (vt, antecs, lr) = go (xs \\ [n]) p in
-        ((n, t, True) : vt, antecs, lr)
+    produceAntecs :: Proposition -> AM [Equation F]
+    produceAntecs = go []
+      where
+        go as p = case p of
+          Forall n t p -> do
+            introduceSk n t
+            go as p
+    
+          Exists n t p -> do
+            introduceSk n t
+            go as p
+    
+          Equal _ _ -> return as
+    
+          Implies e0 e1 p -> do
+            l <- exprToTerm e0 
+            r <- exprToTerm e1
+            go ((l :=: r) : as) p
+    
+    produceGoal :: Proposition -> AM (Term F, Term F)
+    produceGoal p = case p of
+      Forall n t p -> produceGoal p
+    
+      Exists n t p -> do
+        introduceV n t
+        produceGoal p
+    
+      Equal l r -> do
+        l <- exprToTerm l
+        r <- exprToTerm r
+        return (l, r)
+    
+      Implies _ _ p -> produceGoal p 
 
-      Exists n t p ->
-        let (vt, antecs, lr) = go (n:xs) p in
-        ((n, t, False) : vt, antecs, lr)
-
-      Equal lhs rhs -> ([], [], (lhs, rhs))
-
-      Implies e0 e1 p ->
-        let (vt, antecs, lr) = go xs p in
-        (vt, (xs, e0, e1) : antecs, lr)
-
+    produceIH :: Proposition -> AM (Equation F)
+    produceIH p = case p of
+      Forall n t p -> do
+        introduceV n t
+        produceIH p
+    
+      Exists n t p -> produceIH p
+    
+      Equal l r -> do
+        l <- exprToTerm l
+        r <- exprToTerm r
+        return (l :=: r)
+    
+      Implies _ _ p -> produceIH p 
 
 substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
 
 -- Generates an induction schema where the first variable in the proposition 
 -- to be proven is of type `t` with definition `def`
 structuralInduction :: Type -> [(Name, [Type])] -> InductionSchema
-structuralInduction t def prop = do
-  resetV
-  let (vt, antecs, (lhs, rhs)) = splitProposition prop
-  -- Introduce all the variables except for the one we are doing
-  -- induction over (the first one)
-  mapM (\(n, t, f) -> if f then introduceV n t else introduceSk n t) $ drop 1 vt
+structuralInduction t def (Forall n _ prop) = do
   -- Introduce the fist type variable as just a variable
   idx <- gets nextVarId 
   modify $ \s -> s { nextVarId     = idx + 1 } 
-  mapM (\n -> mapVarTo n (build . var $ V idx)) ((\(n, _, _) -> n) <$> take 1 vt)
-  -- The goal
-  let existsVars = flip elem [ n | (n, _, False) <- vt ]
-  goal <- (:=:) <$> exprToTerm existsVars lhs <*> exprToTerm existsVars rhs
-  -- All antecedents
-  ants <- sequence [ (:=:) <$> exprToTerm (flip elem vs) lhs <*> exprToTerm (flip elem vs) rhs | (vs, lhs, rhs) <- antecs ]
-  -- The underlying theory
+  mapVarTo n (build . var $ V idx)
+  -- Split the proposition to get the antecedens
+  (ants, ih, (l, r)) <- splitProposition prop
+  let goal = build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false)
+  -- Introduce all the variables except for the one we are doing
   thy <- gets theory
   sequence
     [ do
@@ -331,15 +355,16 @@ structuralInduction t def prop = do
         vars <- sequence [ if t == t' then freshSkolem t' else freshVar t' | t' <- ts ]
         let skolems = [ v | (v, t') <- zip vars ts, t == t' ]
         -- Create I.H for each skolem variable
-        let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) goal | sk <- skolems ]
+        let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) ih | sk <- skolems ]
         -- Get the constructor term
         c <- getF cn
         let term = apply t c vars
         -- Antecedents
-        let antecs = substEq (fromJust $ T.listToSubst [(V idx, term)]) <$> ants
-        return $ Problem { goal = substEq (fromJust $ T.listToSubst [(V idx, term)]) $ goal
+        let antecs = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) <$> ants
+        return $ Problem { goal = (build . con . fun . Function $ F_true) :=: (build . con . fun . Function $ F_false)
                          , antecedents = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] antecs]
-                         , hypotheses = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih) | (ih, i) <- zip ihs [0..] ]
+                         , hypotheses =  [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih) | (ih, i) <- zip ihs [0..] ]
+                                      ++ [ ("Negated goal", substEq (fromJust $ T.listToSubst [(V idx, subst (con . skolem) term)]) $ goal) ]
                          , background = thy
                          , lemmas = [] }
     | (cn, ts) <- def ]
@@ -348,21 +373,19 @@ structuralInduction t def prop = do
 structInductOnFirst :: InductionSchema
 structInductOnFirst prop = do
   prop <- normaliseProp prop
-  case splitProposition prop of
-    ([], antecs, (lhs, rhs)) -> do
-      -- The goal
-      g <- (:=:) <$> exprToTerm (const False) lhs <*> exprToTerm (const False) rhs
-      -- All antecedents
-      ants <- sequence [ (:=:) <$> exprToTerm (const False) lhs <*> exprToTerm (const False) rhs | ([], lhs, rhs) <- antecs ]
-      -- The background
-      thy <- gets theory
-      -- skolemised antecedents 
-      let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
-      -- skolemised goal
-      return [Problem { goal = g, antecedents = antecs, background = thy, hypotheses = [], lemmas = [] }]
-    ((_, t, True):_, _, _) -> do
+  case prop of
+    Forall _ t _ -> do
       def <- getDef t
       structuralInduction t def prop
+
+    _ -> do
+      (ants, _, (l, r)) <- splitProposition prop
+      let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
+      let g = (build . con . fun . Function $ F_true) :=: (build . con . fun . Function $ F_false)
+      thy <- gets theory
+      return [Problem { goal = g, antecedents = antecs, background = thy
+                      , hypotheses = [ ("Negated goal", build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false))]
+                      , lemmas = [] }]
 
 {- Function to test the induction schema generation -}
 attack :: Name -> Program -> Either String [Problem]
