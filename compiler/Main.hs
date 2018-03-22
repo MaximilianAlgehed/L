@@ -36,7 +36,7 @@ main = do
   corePgm <- case pProgram (myLexer raw) of
     Ok p  -> case runTC $ typeCheck Nothing p of
       Right p -> do
-        return (surfaceToCore . normalise $ p)
+        return . surfaceToCore . normalise $ p
       Left e  -> error e
     Bad e -> error e
 
@@ -44,7 +44,8 @@ main = do
     Left err -> error err
     Right as -> return as
 
-  attacked <- case attack (Name problemName) corePgm of
+  -- TODO: Make the choice of induction schema up to the user
+  attacked <- case attack structInductOnFirst (Name problemName) corePgm of
     Left err -> error err
     Right ps -> return ps
 

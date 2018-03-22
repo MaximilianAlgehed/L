@@ -343,7 +343,11 @@ splitProposition p = do
         r <- exprToTerm r
         return (l :=: r)
     
-      Implies _ _ p -> produceIH p 
+      Implies e0 e1 p -> do
+        e0 <- exprToTerm e0
+        e1 <- exprToTerm e1
+        lhs :=: rhs <- produceIH p
+        return $ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs
 
 hasExists :: Proposition -> Bool
 hasExists p = case p of
@@ -354,17 +358,22 @@ hasExists p = case p of
 
 substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
 
+false, true :: Term F
+false = (build . con . fun . Function $ F_false)
+true  = (build . con . fun . Function $ F_true)
+
 -- Generates an induction schema where the first variable in the proposition 
 -- to be proven is of type `t` with definition `def`
-structuralInduction :: Type -> [(Name, [Type])] -> InductionSchema
-structuralInduction t def (Forall n _ prop) = do
+structuralInduction :: InductionSchema
+structuralInduction (Forall n t prop) = do
+  def <- getDef t
   -- Introduce the fist type variable as just a variable
   let idx = 0
   modify $ \s -> s { nextVarId = 1 } 
   mapVarTo n (build . var $ V idx)
   -- Split the proposition to get the antecedens
   (ants, ih, (l, r)) <- splitProposition prop
-  let goal = build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false)
+  let goal = build (app (fun (Function F_equals)) [l, r]) :=: false
   -- Introduce all the variables except for the one we are doing
   thy <- gets theory
   sequence
@@ -380,10 +389,12 @@ structuralInduction t def (Forall n _ prop) = do
         let term = apply t c vars
         -- Antecedents
         let antecs = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) <$> ants
-        return $ Problem { goal = if hasExists prop then (build . con . fun . Function $ F_true) :=: (build . con . fun . Function $ F_false)
-                                                    else substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, subst (con . skolem) term)]) $ ih
+        return $ Problem { goal = if hasExists prop
+                                  then true :=: false 
+                                  else substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) $ (l :=: r)
                          , antecedents = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] antecs]
-                         , hypotheses =  [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih) | (ih, i) <- zip ihs [0..] ]
+                         , hypotheses  = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih)
+                                         | (ih, i) <- zip ihs [0..] ]
                                       ++ if hasExists prop then [ ("Negated goal", substEq (fromJust $ T.listToSubst [(V idx, subst (con . skolem) term)]) $ goal) ]
                                          else []
                          , background = thy
@@ -395,26 +406,24 @@ structInductOnFirst :: InductionSchema
 structInductOnFirst prop = do
   prop <- normaliseProp prop
   case prop of
-    Forall _ t _ -> do
-      def <- getDef t
-      structuralInduction t def prop
+    Forall _ _ _ -> structuralInduction prop
 
     _ -> withoutInduction prop 
 
 withoutInduction :: InductionSchema
 withoutInduction prop = do
   prop <- normaliseProp prop
-  (ants, ih, (l, r)) <- splitProposition prop
+  (ants, _, (l, r)) <- splitProposition prop
   let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
   thy <- gets theory
   let prob = if hasExists prop then
-                  [ Problem { goal = (build . con . fun . Function $ F_true) :=: (build . con . fun . Function $ F_false)
+                  [ Problem { goal = true :=: false
                             , antecedents = antecs
                             , background = thy
                             , hypotheses = [ ("Negated goal", build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false))]
                             , lemmas = [] } ]
              else
-                  [ Problem { goal = substEq (con . skolem) ih
+                  [ Problem { goal = l :=: r
                             , antecedents = antecs
                             , background = thy
                             , hypotheses = []
@@ -422,13 +431,13 @@ withoutInduction prop = do
   return prob
 
 {- Function to test the induction schema generation -}
-attack :: Name -> Program -> Either String [Problem]
-attack n prg = runAM $ do
+attack :: InductionSchema -> Name -> Program -> Either String [Problem]
+attack induct n prg = runAM $ do
   axiomatise prg
   case [ (p, extras) | TheoremDecl n' p extras <- prg, n == n' ] of
     []    -> throwError "Can't attack a non-existent problem!"
     (p:_) -> do
       extras   <- mapM assume (snd p)
-      problems <- structInductOnFirst (fst p)
+      problems <- induct (fst p)
       -- Add lemmas
       return [ p { lemmas = lemmas p ++ extras } | p <- problems ]
