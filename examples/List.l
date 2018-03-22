@@ -129,6 +129,6 @@ using
   drop-nil drop-cons;
 
 theorem drop-add
-  forall m n : Nat. forall xs : NatList. drop n (drop m xs) = drop (add n m) xs
+  forall n m : Nat. forall xs : NatList. drop n (drop m xs) = drop (add n m) xs
 using
-  add-Z add-S drop-S;
+  drop-S;

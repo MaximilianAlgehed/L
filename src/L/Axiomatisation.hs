@@ -113,7 +113,7 @@ introduceSk n t = do
 
 introduceEx :: [Name] -> Name -> Type -> AM ()
 introduceEx xs n t = do
-  id <- gets nextExId 
+  id <- gets nextExId
   ts <- mapM getV xs
   modify $ \s -> s { variableMap   = M.insert n (typeTag t . build $ app (fun (Function (Skf id (length xs)))) ts) (variableMap s)
                    , variableTypes = M.insert n t (variableTypes s)
@@ -142,9 +142,9 @@ getV n = do
 
 freshSkolem :: Type -> AM (Term F)
 freshSkolem t = do
-  idx <- gets nextVarId 
-  modify $ \s -> s { nextVarId = idx + 1 }
-  return . typeTag t . build . con . skolem . V $ idx
+  idx <- gets nextExId 
+  modify $ \s -> s { nextExId = idx + 1 }
+  return . typeTag t . build . con . fun . Function $ Skf idx 0
 
 tt :: Term F -> Term F -> Term F
 tt typ te = build (app (fun (Function (TT hideTypeTags))) [typ, te])
@@ -289,50 +289,49 @@ data Problem = Problem { goal        :: Equation F
 
 type InductionSchema = Proposition -> AM [Problem]
 
-splitProposition :: [Name] -> Proposition -> AM ([Equation F], Equation F, (Term F, Term F))
-splitProposition ns p = do
+splitProposition :: Proposition -> AM ([Equation F], Equation F, (Term F, Term F))
+splitProposition p = do
   as <- produceAntecs p
   vm <- gets variableMap
   ih <- produceIH p
   modify $ \s -> s { variableMap = vm }
-  g  <- produceGoal [] p
+  g  <- produceGoal p
   return (as, ih, g)
   where
     produceAntecs :: Proposition -> AM [Equation F]
-    produceAntecs = go ns []
+    produceAntecs = go [] [] []
       where
-        go ns as p = case p of
+        go exs axs as p = case p of
           Forall n t p -> do
-            introduceSk n t
-            go (n:ns) as p
+            introduceEx exs n t
+            go (filter (/= n) exs) (n:axs) as p
     
           Exists n t p -> do
-            introduceEx ns n t
-            go ns as p
+            introduceEx axs n t
+            go (n:exs) (filter (/= n) axs) as p
     
           Equal _ _ -> return as
     
           Implies e0 e1 p -> do
             l <- exprToTerm e0 
             r <- exprToTerm e1
-            go ns ((l :=: r) : as) p
+            go exs axs ((l :=: r) : as) p
     
-    produceGoal :: [Name] -> Proposition -> AM (Term F, Term F)
-    produceGoal ns p = case p of
+    produceGoal :: Proposition -> AM (Term F, Term F)
+    produceGoal p = case p of
       Forall n t p -> do
-        introduceEx ns n t
-        produceGoal ns p
+        produceGoal p
     
       Exists n t p -> do
         introduceV n t
-        produceGoal (nub $ n:ns) p
+        produceGoal p
     
       Equal l r -> do
         l <- exprToTerm l
         r <- exprToTerm r
         return (l, r)
     
-      Implies _ _ p -> produceGoal ns p
+      Implies _ _ p -> produceGoal p
 
     produceIH :: Proposition -> AM (Equation F)
     produceIH p = case p of
@@ -376,7 +375,7 @@ structuralInduction (Forall n t prop) = do
   modify $ \s -> s { nextVarId = 1 } 
   mapVarTo n (build . var $ V idx)
   -- Split the proposition to get the antecedens
-  (ants, ih, (l, r)) <- splitProposition [n] prop
+  (ants, ih, (l, r)) <- splitProposition prop
   let negGoal = build (app (fun (Function F_equals)) [l, r]) :=: false
   -- Introduce all the variables except for the one we are doing
   thy <- gets theory
@@ -415,7 +414,7 @@ structInductOnFirst prop = do
 withoutInduction :: InductionSchema
 withoutInduction prop = do
   prop <- normaliseProp prop
-  (ants, _, (l, r)) <- splitProposition [] prop
+  (ants, _, (l, r)) <- splitProposition prop
   let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
   thy <- gets theory
   return [ Problem { goal = true :=: false
