@@ -10,9 +10,7 @@ lemma add-Z
   forall n : Nat. add n Z = n;
 
 lemma add-S
-  forall n m : Nat. add n (S m) = S (add n m)
-using
-  add-comm;
+  forall n m : Nat. add n (S m) = S (add n m);
 
 lemma add-S-S
   forall n m : Nat. add (S n) (S m) = S (S (add n m))

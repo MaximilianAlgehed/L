@@ -358,10 +358,9 @@ substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
 -- to be proven is of type `t` with definition `def`
 structuralInduction :: Type -> [(Name, [Type])] -> InductionSchema
 structuralInduction t def (Forall n _ prop) = do
-  modify $ \s -> s { nextVarId = 0 }
   -- Introduce the fist type variable as just a variable
-  idx <- gets nextVarId 
-  modify $ \s -> s { nextVarId     = idx + 1 } 
+  let idx = 0
+  modify $ \s -> s { nextVarId = 1 } 
   mapVarTo n (build . var $ V idx)
   -- Split the proposition to get the antecedens
   (ants, ih, (l, r)) <- splitProposition prop
@@ -407,18 +406,19 @@ withoutInduction prop = do
   prop <- normaliseProp prop
   (ants, ih, (l, r)) <- splitProposition prop
   let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
-  let g = (build . con . fun . Function $ F_true) :=: (build . con . fun . Function $ F_false)
   thy <- gets theory
   let prob = if hasExists prop then
-                  [Problem { goal = g, antecedents = antecs
-                           , background = thy
-                           , hypotheses = [ ("Negated goal", build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false))]
-                           , lemmas = [] }]
+                  [ Problem { goal = (build . con . fun . Function $ F_true) :=: (build . con . fun . Function $ F_false)
+                            , antecedents = antecs
+                            , background = thy
+                            , hypotheses = [ ("Negated goal", build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false))]
+                            , lemmas = [] } ]
              else
-                  [Problem { goal = substEq (con . skolem) ih
-                           , antecedents = antecs, background = thy
-                           , hypotheses = []
-                           , lemmas = [] }]
+                  [ Problem { goal = substEq (con . skolem) ih
+                            , antecedents = antecs
+                            , background = thy
+                            , hypotheses = []
+                            , lemmas = [] } ]
   return prob
 
 {- Function to test the induction schema generation -}
