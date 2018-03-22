@@ -222,7 +222,7 @@ functionToEquations d = do
     _ -> throwError "Argument to functionToEquations is not a function declaration"
 
 proposition :: Proposition -> AM (Equation F)
-proposition p =  case p of
+proposition p = case p of
   Forall n t p -> do
     introduceV n t
     proposition p
@@ -246,7 +246,8 @@ assume :: Name -> AM (String, Equation F)
 assume n@(Name nm) = do
   modify $ \s -> s { nextVarId = 0 }
   thmDef <- getThm n
-  (nm,) <$> proposition thmDef
+  p <- normaliseProp thmDef >>= proposition
+  return (nm, p)
 
 axiomatise :: Program -> AM ()
 axiomatise ps = do
@@ -399,22 +400,26 @@ structInductOnFirst prop = do
       def <- getDef t
       structuralInduction t def prop
 
-    _ -> do
-      (ants, ih, (l, r)) <- splitProposition prop
-      let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
-      let g = (build . con . fun . Function $ F_true) :=: (build . con . fun . Function $ F_false)
-      thy <- gets theory
-      let prob = if hasExists prop then
-                      [Problem { goal = g, antecedents = antecs
-                               , background = thy
-                               , hypotheses = [ ("Negated goal", build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false))]
-                               , lemmas = [] }]
-                 else
-                      [Problem { goal = substEq (con . skolem) ih
-                               , antecedents = antecs, background = thy
-                               , hypotheses = []
-                               , lemmas = [] }]
-      return prob
+    _ -> withoutInduction prop 
+
+withoutInduction :: InductionSchema
+withoutInduction prop = do
+  prop <- normaliseProp prop
+  (ants, ih, (l, r)) <- splitProposition prop
+  let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
+  let g = (build . con . fun . Function $ F_true) :=: (build . con . fun . Function $ F_false)
+  thy <- gets theory
+  let prob = if hasExists prop then
+                  [Problem { goal = g, antecedents = antecs
+                           , background = thy
+                           , hypotheses = [ ("Negated goal", build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false))]
+                           , lemmas = [] }]
+             else
+                  [Problem { goal = substEq (con . skolem) ih
+                           , antecedents = antecs, background = thy
+                           , hypotheses = []
+                           , lemmas = [] }]
+  return prob
 
 {- Function to test the induction schema generation -}
 attack :: Name -> Program -> Either String [Problem]
