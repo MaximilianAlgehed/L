@@ -29,8 +29,9 @@ lookupDef f = do
 normaliseProp :: Proposition -> EvalM Proposition
 normaliseProp p =
  case p of
-   Forall  x t p -> do
-    Forall x t <$> normaliseProp p
+   Forall  x t p -> Forall x t <$> normaliseProp p
+
+   Exists  x t p -> Exists x t <$> normaliseProp p
 
    Equal l r     -> return $ Equal l r
 
@@ -72,6 +73,13 @@ substExpr e (x, e') = go e
            Forall y' t <$> go' p
         | otherwise -> Forall y t <$> go' p
 
+      Exists y t p
+        | y `elem` fv -> do
+           y'      <- getNext
+           Prop p' <- substExpr (Prop p) (y, Var y')
+           Exists y' t <$> go' p
+        | otherwise -> Exists y t <$> go' p
+
       Equal l r     -> Equal <$> go l <*> go r
 
       Implies l r p -> Implies <$> go l <*> go r <*> go' p
@@ -111,6 +119,8 @@ free e = case e of
   Prop p    -> case p of
 
     Forall x _ p  -> free (Prop p) S.\\ S.singleton x
+
+    Exists x _ p  -> free (Prop p) S.\\ S.singleton x
 
     Equal l r     -> S.union (free l) (free r)
 

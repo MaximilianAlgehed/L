@@ -93,6 +93,10 @@ surfaceToCore (A.P ds) = concatMap decl ds
                                (proposition p)
                                ns
 
+      A.EEx _ ns t p -> foldr (\(A.LIdent n) p -> Exists (Name n) (transType t) p)
+                               (proposition p)
+                               ns
+
       A.EEqual _ el er -> Equal (expr el) (expr er)
 
       A.EImpl _ el er p -> Implies (expr el) (expr er) (proposition p)

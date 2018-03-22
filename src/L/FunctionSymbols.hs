@@ -16,7 +16,7 @@ hideTypeTags :: Bool
 hideTypeTags = True
 
 hideApply :: Bool
-hideApply = False 
+hideApply = False
 
 type F = Ext FI
 
@@ -32,6 +32,7 @@ data FI = F { arityF :: Int
                 , nameF :: Name }
         | FPtr (Term F) Type
         | Apply { invis :: Bool }
+        | Skf { skIdx :: Int, artiyF :: Int }
         | FIfEq
         | F_equals
         | F_true
@@ -46,7 +47,7 @@ instance Arity FI where
   arity F_false     = 0
   arity F_equals    = 2
   arity FIfEq       = 4
-  arity (T _ _)     = 1
+  arity (T _ _)     = 0
   arity (FT _)      = 2
   arity (TT _)      = 2
   arity (Apply _)   = 2
@@ -63,10 +64,13 @@ instance Pretty FI where
   pPrint (TT _)        = text "tt"
   pPrint (Apply _)     = text "$"
   pPrint f@(SFPtr _ _) = text . ("*" ++) . show . nameF $ f
+  pPrint (Skf i _)     = text $ "skf" ++ show i
   pPrint f             = text . ("'" ++) . show . nameF $ f
 
 instance EqualsBonus FI where
-  hasEqualsBonus _ = True
+  hasEqualsBonus F_equals = True
+  hasEqualsBonus FIfEq    = True
+  hasEqualsBonus _        = False
 
   isEquals F_equals = True
   isEquals _        = False
@@ -84,6 +88,7 @@ instance PrettyTerm FI where
   termStyle F_true     = curried
   termStyle F_false    = curried
   termStyle F_equals   = infixStyle 0
+  termStyle (Skf _ _)  = curried
   termStyle f          = if invis f then invisible else curried
 
 instance Ordered (Ext FI) where
@@ -101,13 +106,11 @@ data Ext f =
   | Skolem T.Var
     -- | An ordinary function symbol.
   | Function f
-  | Existential T.Var
   deriving (Eq, Ord, Show, Functor)
 
 instance Pretty f => Pretty (Ext f) where
   pPrintPrec _ _ Minimal             = text "_"
   pPrintPrec _ _ (Skolem (V n))      = text "sk" <> pPrint n
-  pPrintPrec _ _ (Existential (V n)) = text "ex" <> pPrint n
   pPrintPrec l p (Function f)        = pPrintPrec l p f
 
 instance PrettyTerm f => PrettyTerm (Ext f) where

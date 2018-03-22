@@ -1,6 +1,5 @@
 data Nat = Z | S Nat;
 
-{-
 add : Nat -> Nat -> Nat
 add n m = case n of
     Z   -> m
@@ -31,7 +30,6 @@ using
 
 lemma add-Z
   forall n : Nat. add n Z = n;
--}
 
 data NatList = Nil | Cons Nat NatList;
 
@@ -65,7 +63,6 @@ theorem reverse-reverse
 using
   reverse-append;
 
-{-
 quickReverse : NatList -> NatList -> NatList
 quickReverse xs ys = case xs of
     Nil       -> ys
@@ -109,6 +106,9 @@ lemma length-reverse
 using
   append-add-length add-comm;
 
+theorem length-ex
+  forall n : Nat. exists xs : NatList. length xs = n;
+
 drop : Nat -> NatList -> NatList
 drop n xs = case n of
     Z   -> xs
@@ -132,4 +132,3 @@ theorem drop-add
   forall m n : Nat. forall xs : NatList. drop n (drop m xs) = drop (add n m) xs
 using
   add-Z add-S drop-S;
-  -}
