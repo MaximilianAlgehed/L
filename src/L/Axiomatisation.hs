@@ -127,7 +127,7 @@ mapVarTo :: Name -> Term F -> AM ()
 mapVarTo n t = modify $ \s -> s { variableMap = M.insert n t (variableMap s) }
 
 specific :: Name -> Term F
-specific = build . con . fun . Function . SFPtr 0 False
+specific = build . con . fun . Function . SFPtr False
 
 getV :: Name -> AM (Term F)
 getV n = do

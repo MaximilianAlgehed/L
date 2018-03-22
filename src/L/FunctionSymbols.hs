@@ -28,8 +28,7 @@ data FI = F { arityF :: Int
             , invis  :: Bool }
         | FT { invis  :: Bool }
         | TT { invis :: Bool }
-        | SFPtr { arityF :: Int
-                , invis :: Bool
+        | SFPtr { invis :: Bool
                 , nameF :: Name }
         | FPtr (Term F) Type
         | Apply { invis :: Bool }
@@ -43,27 +42,28 @@ instance Sized FI where
   size _ = 1
 
 instance Arity FI where
-  arity F_true    = 0
-  arity F_false   = 0
-  arity F_equals  = 2
-  arity FIfEq     = 4
-  arity (T _ _)   = 1
-  arity (FT _)    = 2
-  arity (TT _)    = 2
-  arity (Apply _) = 2
-  arity f         = arityF f
+  arity F_true      = 0
+  arity F_false     = 0
+  arity F_equals    = 2
+  arity FIfEq       = 4
+  arity (T _ _)     = 1
+  arity (FT _)      = 2
+  arity (TT _)      = 2
+  arity (Apply _)   = 2
+  arity (SFPtr _ _) = 0
+  arity f           = arityF f
 
 instance Pretty FI where
-  pPrint F_true          = text "true"
-  pPrint F_false         = text "false"
-  pPrint F_equals        = text "=="
-  pPrint FIfEq           = text "ifEq"
-  pPrint t@(T _ _)       = text . show . typ $ t
-  pPrint (FT _)          = text "fun"
-  pPrint (TT _)          = text "tt"
-  pPrint (Apply _)       = text "$"
-  pPrint f@(SFPtr _ _ _) = text . ("*" ++) . show . nameF $ f
-  pPrint f               = text . ("'" ++) . show . nameF $ f
+  pPrint F_true        = text "true"
+  pPrint F_false       = text "false"
+  pPrint F_equals      = text "=="
+  pPrint FIfEq         = text "ifEq"
+  pPrint t@(T _ _)     = text . show . typ $ t
+  pPrint (FT _)        = text "fun"
+  pPrint (TT _)        = text "tt"
+  pPrint (Apply _)     = text "$"
+  pPrint f@(SFPtr _ _) = text . ("*" ++) . show . nameF $ f
+  pPrint f             = text . ("'" ++) . show . nameF $ f
 
 instance EqualsBonus FI where
   hasEqualsBonus _ = True
@@ -99,9 +99,9 @@ data Ext f =
     Minimal
     -- | A Skolem function.
   | Skolem T.Var
-  | Existential T.Var
     -- | An ordinary function symbol.
   | Function f
+  | Existential T.Var
   deriving (Eq, Ord, Show, Functor)
 
 instance Pretty f => Pretty (Ext f) where
