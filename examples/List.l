@@ -33,6 +33,11 @@ lemma add-Z
 
 data NatList = Nil | Cons Nat NatList;
 
+map : (Nat -> Nat) -> NatList -> NatList
+map f xs = case xs of
+    Nil       -> Nil
+  | Cons x xs -> Cons (f x) (map f xs);
+
 append : NatList -> NatList -> NatList
 append xs ys = case xs of
     Nil       -> ys

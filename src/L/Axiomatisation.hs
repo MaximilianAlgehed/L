@@ -212,6 +212,7 @@ functionToEquations d = do
                 xs' <- mapM getV xs
                 e   <- exprToTerm e
                 return [("def. " ++ fname, apply t f xs' :=: e)]
+
       modify $ \s -> s { nextVarId = 0 }
       (t, ts) <- getT f
       sequence [ introduceV x t | (x, t) <- zip xs ts ]
@@ -251,6 +252,14 @@ assume n@(Name nm) = do
   p <- normaliseProp thmDef >>= proposition []
   return (nm, p)
 
+addCPtrAxiom :: Name -> Type -> [Type] -> AM ()
+addCPtrAxiom (Name n) t ts = do
+  modify $ \s -> s { nextVarId = 0 }
+  let typ = foldr FunctionType t ts
+  xs <- mapM freshVar ts
+  f' <- getF (Name n)
+  modify $ \s -> s { theory = ("apply " ++ n, apps (typeTag typ (specific (Name n)), typ) xs :=: apply t f' xs) : theory s }
+
 axiomatise :: Program -> AM ()
 axiomatise ps = do
   -- Introduce all defintions and constructors to the context
@@ -260,6 +269,7 @@ axiomatise ps = do
                 -- Constructors
                 sequence [ do addF n (length ts)
                               addT n (MonoType t, ts)
+                              unless (null ts) $ addCPtrAxiom n (MonoType t) ts
                          | (n, ts) <- cs ]
             | DataDecl t cs <- ps ]
   -- Introduce all functions to the context
@@ -272,7 +282,7 @@ axiomatise ps = do
   -- Introduce the axiom for `IfEq`
   let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
   let eqlAx = ("def. (==)", build (app (fun (Function F_equals)) (map var [V 0, V 0])) :=: (build . con . fun . Function $ F_true))
-  modify $ \s -> s { theory = eqlAx : eqAx : axs }
+  modify $ \s -> s { theory = eqlAx : eqAx : axs ++ theory s }
 
 -- | Partially evaluate a proposition to get it
 -- into "application-free" form
