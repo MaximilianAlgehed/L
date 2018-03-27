@@ -16,11 +16,14 @@ type Program = [Decl]
 data Type = MonoType Name
           | FunctionType Type Type
           | Formula
+          | TypeVar Name
           deriving (Ord, Eq)
 
 instance Show Type where
   show (FunctionType t0 t1) = "(" ++ show t0 ++ " -> " ++ show t1 ++ ")"
   show (MonoType n)         = show n
+  show Formula              = "Formula"
+  show (TypeVar n)          = show n
 
 -- All declarations
 data Decl = DataDecl    Name [(Name, [Type])]
@@ -34,7 +37,7 @@ data Proposition = Forall  Name Type Proposition
                  | Equal   Expr Expr
                  | Implies Expr Expr Proposition
                  -- Things introduced by expressions
-                 | PFApp   Name [Expr]
+                 | PFApp   Name [Type] [Expr]
                  | PVar    Name
                  deriving (Ord, Eq, Show)
 
@@ -49,7 +52,7 @@ data Pattern = ConstructorPattern Name [Pattern]
              deriving (Ord, Eq, Show)
 
 -- Expressions
-data Expr = FApp Name [Expr]
+data Expr = FApp Name [Type] [Expr]
           | Var  Name
           | Prop Proposition
           deriving (Ord, Eq, Show)
@@ -102,9 +105,9 @@ surfaceToCore (A.P ds) = concatMap decl ds
       A.EImpl _ el er p -> Implies (expr el) (expr er) (proposition p)
 
       _                 -> case expr p of
-        Var n     -> PVar n 
-        FApp n xs -> PFApp n xs
-        Prop p    -> p
+        Var n        -> PVar n 
+        FApp n ts xs -> PFApp n ts xs
+        Prop p       -> p
 
     constructor :: A.Constructor -> (Name, [Type])
     constructor (A.C (A.UIdent n) ts) = (Name n, map transType ts)
@@ -126,8 +129,8 @@ surfaceToCore (A.P ds) = concatMap decl ds
     expr :: A.Expr -> Expr
     expr e = case e of
       A.EVar _ (A.LIdent x) -> Var (Name x)
-      A.ECon _ (A.UIdent c) -> FApp (Name c) []
-      A.EApp _ fun es       -> FApp (name fun) (map expr es)
+      A.ECon _ (A.UIdent c) -> FApp (Name c) [] []
+      A.EApp _ fun es       -> FApp (name fun) [] (map expr es)
       _                     -> Prop (proposition e)
       where
         name (A.EVar _ (A.LIdent n)) = Name n
