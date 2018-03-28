@@ -185,6 +185,8 @@ patternToTerm t p = case p of
 
 functionToEquations :: Decl -> AM [(String, Equation F)]
 functionToEquations d = do
+  -- Reset the variable context
+  modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
   case d of
     FunDecl f@(Name fname) t xs body -> do
       es <- case body of
@@ -205,8 +207,6 @@ functionToEquations d = do
                   | (pat, expr) <- ps ]
     
               E e       -> do
-                -- Reset the variable context
-                modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
                 (t, ts) <- getT f
                 sequence [ introduceV x t | (x, t) <- zip xs ts ]
                 f   <- getF f
