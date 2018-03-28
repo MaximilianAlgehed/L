@@ -70,14 +70,14 @@ substExpr e (x, e') = go e
         | y `elem` fv -> do
            y'      <- getNext
            Prop p' <- substExpr (Prop p) (y, Var y')
-           Forall y' t <$> go' p
+           Forall y' t <$> go' p'
         | otherwise -> Forall y t <$> go' p
 
       Exists y t p
         | y `elem` fv -> do
            y'      <- getNext
            Prop p' <- substExpr (Prop p) (y, Var y')
-           Exists y' t <$> go' p
+           Exists y' t <$> go' p'
         | otherwise -> Exists y t <$> go' p
 
       Equal l r     -> Equal <$> go l <*> go r
