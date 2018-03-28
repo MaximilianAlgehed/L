@@ -83,6 +83,13 @@ transType A.Formula = Formula
 ftv :: Type -> [Name]
 ftv t = nub [ n | TypeVar n <- universe t ]
 
+substType :: Type -> (Name, Type) -> Type
+substType t (x, t') = transform go t
+  where
+    go (TypeVar n)
+      | n == x = t'
+    go _ = t
+
 surfaceToCore :: A.Program -> Program
 surfaceToCore (A.P ds) = concatMap decl ds
   where

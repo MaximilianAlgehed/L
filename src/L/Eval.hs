@@ -1,5 +1,6 @@
 module L.Eval where
 
+import Data.Generics.Uniplate.Data
 import qualified Data.Set as S
 import Control.Monad.State
 import qualified Data.Map as M
@@ -29,13 +30,11 @@ lookupDef f = do
 normaliseProp :: Proposition -> EvalM Proposition
 normaliseProp p =
  case p of
-   Forall  x t p -> Forall x t <$> normaliseProp p
-
-   Exists  x t p -> Exists x t <$> normaliseProp p
-
-   Equal l r     -> return $ Equal l r
-
-   Implies l r p -> Implies l r <$> normaliseProp p
+   Forall  x t p  -> Forall x t <$> normaliseProp p
+   ForallType t p -> ForallType t <$> normaliseProp p
+   Exists  x t p  -> Exists x t <$> normaliseProp p
+   Equal l r      -> return $ Equal l r
+   Implies l r p  -> Implies l r <$> normaliseProp p
 
    PFApp f ts es -> do
     (xts, xs, body) <- lookupDef f
@@ -48,6 +47,41 @@ normaliseProp p =
       _   -> fail "I don't like case statements"
 
    PVar n -> fail "I didn't think that could happen"
+
+substTypeInExpr :: Expr -> (Name, Type) -> EvalM Expr
+substTypeInExpr e s@(x, t) = go e
+  where
+    fv = ftv t
+
+    go :: Expr -> EvalM Expr
+    go e = case e of
+      Var n -> return $ Var n
+
+      FApp f ts es -> FApp f (map (flip substType s) ts) <$> mapM go es
+  
+      Prop p -> Prop <$> go' p
+
+    go' :: Proposition -> EvalM Proposition
+    go' p = case p of
+      
+      Forall y t p   -> Forall y (substType t s) <$> go' p
+
+      Exists y t p   -> Exists y (substType t s) <$> go' p
+
+      Equal l r      -> Equal <$> go l <*> go r
+
+      Implies l r p  -> Implies <$> go l <*> go r <*> go' p
+
+      PFApp f ts es  -> PFApp f (map (flip substType s) ts) <$> mapM go es
+
+      PVar n         -> return $ PVar n
+
+      ForallType t p
+        | t `elem` fv -> do
+           t'      <- getNext
+           Prop p' <- substTypeInExpr (Prop p) (t, TypeVar t')
+           ForallType t' <$> go' p'
+        | otherwise -> ForallType t <$> go' p
 
 substExpr :: Expr -> (Name, Expr) -> EvalM Expr
 substExpr e (x, e') = go e
@@ -79,26 +113,21 @@ substExpr e (x, e') = go e
            y'      <- getNext
            Prop p' <- substExpr (Prop p) (y, Var y')
            Exists y' t <$> go' p'
-        | otherwise -> Exists y t <$> go' p
+        | otherwise  -> Exists y t <$> go' p
 
-      Equal l r     -> Equal <$> go l <*> go r
+      Equal l r      -> Equal <$> go l <*> go r
 
-      Implies l r p -> Implies <$> go l <*> go r <*> go' p
+      Implies l r p  -> Implies <$> go l <*> go r <*> go' p
 
       PFApp f ts es
-        | f == x    -> toProp . applyExpr e' <$> mapM go es
-        | otherwise -> PFApp f ts <$> mapM go es
+        | f == x     -> toProp . applyExpr e' <$> mapM go es
+        | otherwise  -> PFApp f ts <$> mapM go es
 
       PVar n
-        | n == x    -> return $ toProp e'
-        | otherwise -> return $ PVar n
+        | n == x     -> return $ toProp e'
+        | otherwise  -> return $ PVar n
 
-      ForallType t p
-        | t == x  -> do
-            t' <- getNext
-            Prop p' <- substTypeInExpr (Prop p) (t, TypeVar t')
-            ForallType t' <$> go' p'
-        | otherwise -> ForallType t <$> go' p
+      ForallType t p -> ForallType t <$> go' p
 
 applyExpr :: Expr -> [Expr] -> Expr
 applyExpr f xs = case f of
