@@ -9,10 +9,10 @@ import L.CoreLanguage
 
 type EvalM a = StateT EvalState (Either String) a
 
-data EvalState = ES { definitions :: M.Map Name ([Name], Body)
+data EvalState = ES { definitions :: M.Map Name ([Name], [Name], Body)
                     , next :: Int }
 
-runEval :: M.Map Name ([Name], Body) -> EvalM a -> Either String a
+runEval :: M.Map Name ([Name], [Name], Body) -> EvalM a -> Either String a
 runEval ds ev = evalStateT ev (ES ds 0)
 
 getNext :: EvalM Name
@@ -21,7 +21,7 @@ getNext = do
   modify $ \s -> s { next = id + 1 }
   return . Name $ "_#fresh#" ++ show id
 
-lookupDef :: Name -> EvalM ([Name], Body)
+lookupDef :: Name -> EvalM ([Name], [Name], Body)
 lookupDef f = do
   md <- gets (M.lookup f . definitions)
   maybe (fail "Can't find function definition") return md
@@ -37,11 +37,12 @@ normaliseProp p =
 
    Implies l r p -> Implies l r <$> normaliseProp p
 
-   PFApp f es    -> do
-    (xs, body) <- lookupDef f
+   PFApp f ts es -> do
+    (xts, xs, body) <- lookupDef f
     case body of
       E e -> do
-        p <- toProp <$> foldM substExpr e (zip xs es)
+        ets <- foldM substTypeInExpr e (zip xts ts)
+        p <- toProp <$> foldM substExpr ets (zip xs es)
         normaliseProp p
 
       _   -> fail "I don't like case statements"
@@ -58,9 +59,9 @@ substExpr e (x, e') = go e
         | n == x    -> return $ e'
         | otherwise -> return $ Var n
 
-      FApp f es
+      FApp f ts es
         | f == x    -> applyExpr e' <$> mapM go es
-        | otherwise -> FApp f <$> mapM go es
+        | otherwise -> FApp f ts <$> mapM go es
   
       Prop p -> Prop <$> go' p
 
@@ -70,62 +71,56 @@ substExpr e (x, e') = go e
         | y `elem` fv -> do
            y'      <- getNext
            Prop p' <- substExpr (Prop p) (y, Var y')
-           Forall y' t <$> go' p
+           Forall y' t <$> go' p'
         | otherwise -> Forall y t <$> go' p
 
       Exists y t p
         | y `elem` fv -> do
            y'      <- getNext
            Prop p' <- substExpr (Prop p) (y, Var y')
-           Exists y' t <$> go' p
+           Exists y' t <$> go' p'
         | otherwise -> Exists y t <$> go' p
 
       Equal l r     -> Equal <$> go l <*> go r
 
       Implies l r p -> Implies <$> go l <*> go r <*> go' p
 
-      PFApp f es
+      PFApp f ts es
         | f == x    -> toProp . applyExpr e' <$> mapM go es
-        | otherwise -> PFApp f <$> mapM go es
+        | otherwise -> PFApp f ts <$> mapM go es
 
       PVar n
         | n == x    -> return $ toProp e'
         | otherwise -> return $ PVar n
 
+      ForallType t p
+        | t == x  -> do
+            t' <- getNext
+            Prop p' <- substTypeInExpr (Prop p) (t, TypeVar t')
+            ForallType t' <$> go' p'
+        | otherwise -> ForallType t <$> go' p
+
 applyExpr :: Expr -> [Expr] -> Expr
 applyExpr f xs = case f of
-
-  FApp f es -> FApp f (es ++ xs)
-
-  Var f     -> FApp f xs
-
-  _         -> error "Something went badly wrong"
+  FApp f ts es -> FApp f ts (es ++ xs)
+  Var f        -> FApp f [] xs
+  _            -> error "Something went badly wrong"
 
 toProp :: Expr -> Proposition
 toProp e = case e of
-  
-  FApp f es -> PFApp f es
-
-  Var n     -> PVar n
-
-  Prop p    -> p
+  FApp f ts es -> PFApp f ts es
+  Var n        -> PVar n
+  Prop p       -> p
 
 free :: Expr -> S.Set Name
 free e = case e of
-  FApp _ es -> foldr S.union S.empty (map free es)
-
+  FApp _ _ es -> foldr S.union S.empty (map free es)
   Var n     -> S.singleton n
-
   Prop p    -> case p of
-
-    Forall x _ p  -> free (Prop p) S.\\ S.singleton x
-
-    Exists x _ p  -> free (Prop p) S.\\ S.singleton x
-
-    Equal l r     -> S.union (free l) (free r)
-
-    Implies l r p -> S.union (free l) (S.union (free r) (free (Prop p)))
-
-    PFApp _ es    -> foldr S.union S.empty (map free es)
-
-    PVar n        -> S.singleton n
+    Forall x _ p   -> free (Prop p) S.\\ S.singleton x
+    Exists x _ p   -> free (Prop p) S.\\ S.singleton x
+    Equal l r      -> S.union (free l) (free r)
+    Implies l r p  -> S.union (free l) (S.union (free r) (free (Prop p)))
+    PFApp _ _ es   -> foldr S.union S.empty (map free es)
+    PVar n         -> S.singleton n
+    ForallType _ p -> free (Prop p)

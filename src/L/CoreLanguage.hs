@@ -1,10 +1,16 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module L.CoreLanguage where
+
+import Data.Data
+import Data.Typeable
+import Data.Generics.Uniplate.Data
+import Data.List
 
 import qualified L.TAbs as A
 import qualified L.Abs as A (Type(..), LIdent(..), UIdent(..), Constructor(..))
 
 -- Names
-newtype Name = Name { getName :: String } deriving (Ord, Eq)
+newtype Name = Name { getName :: String } deriving (Data, Typeable, Ord, Eq)
 
 instance Show Name where
   show = getName
@@ -17,7 +23,7 @@ data Type = MonoType Name
           | FunctionType Type Type
           | Formula
           | TypeVar Name
-          deriving (Ord, Eq)
+          deriving (Data, Typeable, Ord, Eq)
 
 instance Show Type where
   show (FunctionType t0 t1) = "(" ++ show t0 ++ " -> " ++ show t1 ++ ")"
@@ -27,7 +33,7 @@ instance Show Type where
 
 -- All declarations
 data Decl = DataDecl    Name [(Name, [Type])]
-          | FunDecl     Name Type [Name] Body
+          | FunDecl     Name Type [Name] {- Type variables -} [Name] {- Expression variables -} Body
           | TheoremDecl Name Proposition [Name]
           deriving (Ord, Eq, Show)
 
@@ -39,6 +45,8 @@ data Proposition = Forall  Name Type Proposition
                  -- Things introduced by expressions
                  | PFApp   Name [Type] [Expr]
                  | PVar    Name
+                 -- Quantification over types
+                 | ForallType Name Proposition
                  deriving (Ord, Eq, Show)
 
 -- Function bodies
@@ -72,6 +80,9 @@ transType (A.MonoType (A.UIdent t)) = MonoType (Name t)
 transType (A.FunType t0 t1) = FunctionType (transType t0) (transType t1)
 transType A.Formula = Formula
 
+ftv :: Type -> [Name]
+ftv t = nub [ n | TypeVar n <- universe t ]
+
 surfaceToCore :: A.Program -> Program
 surfaceToCore (A.P ds) = concatMap decl ds
   where
@@ -80,7 +91,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
       A.DData (A.UIdent n) cs -> [DataDecl (Name n) (map constructor cs)]
 
       A.DFun (A.LIdent n) t xs b ->
-        [ FunDecl (Name n) (transType t) [ Name x | A.LIdent x <- xs ] (body b)]
+        [ FunDecl (Name n) (transType t) (ftv (transType t)) [ Name x | A.LIdent x <- xs ] (body b)]
 
       A.DThm t -> [theorem t]
 
