@@ -55,27 +55,18 @@ substTypeInExpr e s@(x, t) = go e
 
     go :: Expr -> EvalM Expr
     go e = case e of
-      Var n -> return $ Var n
-
+      Var n        -> return $ Var n
       FApp f ts es -> FApp f (map (flip substType s) ts) <$> mapM go es
-  
-      Prop p -> Prop <$> go' p
+      Prop p       -> Prop <$> go' p
 
     go' :: Proposition -> EvalM Proposition
     go' p = case p of
-      
       Forall y t p   -> Forall y (substType t s) <$> go' p
-
       Exists y t p   -> Exists y (substType t s) <$> go' p
-
       Equal l r      -> Equal <$> go l <*> go r
-
       Implies l r p  -> Implies <$> go l <*> go r <*> go' p
-
       PFApp f ts es  -> PFApp f (map (flip substType s) ts) <$> mapM go es
-
       PVar n         -> return $ PVar n
-
       ForallType t p
         | t `elem` fv -> do
            t'      <- getNext
@@ -92,41 +83,32 @@ substExpr e (x, e') = go e
       Var n
         | n == x    -> return $ e'
         | otherwise -> return $ Var n
-
       FApp f ts es
         | f == x    -> applyExpr e' <$> mapM go es
         | otherwise -> FApp f ts <$> mapM go es
-  
       Prop p -> Prop <$> go' p
 
     go' p = case p of
-      
       Forall y t p
         | y `elem` fv -> do
            y'      <- getNext
            Prop p' <- substExpr (Prop p) (y, Var y')
            Forall y' t <$> go' p'
         | otherwise -> Forall y t <$> go' p
-
       Exists y t p
         | y `elem` fv -> do
            y'      <- getNext
            Prop p' <- substExpr (Prop p) (y, Var y')
            Exists y' t <$> go' p'
         | otherwise  -> Exists y t <$> go' p
-
       Equal l r      -> Equal <$> go l <*> go r
-
       Implies l r p  -> Implies <$> go l <*> go r <*> go' p
-
       PFApp f ts es
         | f == x     -> toProp . applyExpr e' <$> mapM go es
         | otherwise  -> PFApp f ts <$> mapM go es
-
       PVar n
         | n == x     -> return $ toProp e'
         | otherwise  -> return $ PVar n
-
       ForallType t p -> ForallType t <$> go' p
 
 applyExpr :: Expr -> [Expr] -> Expr
