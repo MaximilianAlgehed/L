@@ -60,12 +60,10 @@ main = do
   sequence_ [ do putStrLn $ "*** [case " ++ show caseN ++ "] ***"
                  unless (null (hypotheses p)) $ putStrLn "-- Hypotheses --"
                  mapM_ (uncurry present) (hypotheses p)
-                 unless (null (antecedents p)) $ putStrLn "-- Antecedents --"
-                 mapM_ (uncurry present) (antecedents p) 
                  putStrLn "-- Goal --"
                  prettyPrint (goal p)
                  let axioms = [ Axiom i axName ax
-                              | ((axName, ax), i) <- zip (hypotheses p ++ antecedents p ++ lemmas p ++ background p) [0..] ]
+                              | ((axName, ax), i) <- zip (hypotheses p ++ lemmas p ++ background p) [0..] ]
                  let g = T.goal 0 (problemName ++ ", case " ++ show caseN) $ goal p 
                  let st = addGoal cfg (foldr (\a s -> addAxiom cfg s a) initialState axioms) g
                  completedState <- normaliseGoals <$> complete (Output $ \_ -> return ()) cfg st

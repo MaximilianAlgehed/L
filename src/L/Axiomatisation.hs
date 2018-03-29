@@ -229,7 +229,7 @@ assume :: Name -> AM [(String, Equation F)]
 assume n@(Name nm) = do
   modify $ \s -> s { nextVarId = 0 }
   thmDef <- getThm n
-  ps <- normaliseProp thmDef >>= axiom
+  ps <- normaliseProp thmDef >>= axioms
   if length ps == 1 then
     return [(nm, head ps)]
   else
@@ -275,7 +275,6 @@ normaliseProp p = do
   lift . E.runEval ds . E.normaliseProp $ p
 
 data Problem = Problem { goal        :: Equation F
-                       , antecedents :: [(String, Equation F)]
                        , hypotheses  :: [(String, Equation F)]
                        , lemmas      :: [(String, Equation F)]
                        , background  :: [(String, Equation F)] }
@@ -311,7 +310,6 @@ hasExists :: Proposition -> Bool
 hasExists p = case p of
   Forall _ _ p   -> hasExists p
   Exists _ _ _   -> True
-  Implies _ _ p  -> hasExists p
   Equal _ _      -> False
   NotEqual _ _   -> False
   Implies _ _ p  -> hasExists p
