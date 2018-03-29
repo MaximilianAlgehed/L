@@ -34,6 +34,7 @@ data AState = S { nameMap       :: M.Map Name F
                 , nameTypes     :: M.Map Name (Type, [Type])
                 , variableMap   :: M.Map Name (Term F) 
                 , variableTypes :: M.Map Name Type
+                , typeVarMap    :: M.Map Name (Term F)
                 , definitions   :: M.Map Type [(Name, [Type])]
                 , theorems      :: M.Map Name Proposition
                 , funDefs       :: M.Map Name ([Name], Body)
@@ -45,7 +46,7 @@ data AState = S { nameMap       :: M.Map Name F
 type AM a = StateT AState (Either String) a
 
 runAM :: AM a -> Either String a
-runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.empty 0 0 [])
+runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.empty M.empty 0 0 [])
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
@@ -103,6 +104,12 @@ introduceV n t = do
   modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . var . V $ id) (variableMap s)
                    , variableTypes = M.insert n t (variableTypes s)
                    , nextVarId     = id + 1 } 
+
+introduceTV :: Name -> AM ()
+introduceTV n = do
+  id <- gets nextVarId
+  modify $ \s -> s { typeVarMap = M.insert n (build . var . V $ id) (typeVarMap s)
+                   , nextVarId  = id + 1 }
 
 introduceSk :: Name -> Type -> AM ()
 introduceSk n t = do
@@ -310,31 +317,34 @@ splitProposition p = do
   return (as, ih, g)
   where
     produceAntecs :: Proposition -> AM [Equation F]
-    produceAntecs = go [] [] []
+    produceAntecs = go [] []
       where
-        go exs axs as p = case p of
+        go exs as p = case p of
           Forall n t p -> do
             introduceEx exs n t
-            go (filter (/= n) exs) (n:axs) as p
+            go (filter (/= n) exs) as p
     
           Exists n t p -> do
-            introduceEx axs n t
-            go (n:exs) (filter (/= n) axs) as p
+            introduceV n t
+            go (n:exs) as p
+
+          ForallType t p -> error "Don't know how to deal with this"
     
           Equal _ _ -> return as
     
           Implies e0 e1 p -> do
             l <- exprToTerm e0 
             r <- exprToTerm e1
-            go exs axs ((l :=: r) : as) p
+            go exs ((l :=: r) : as) p
     
     produceGoal :: Proposition -> AM (Term F, Term F)
     produceGoal p = case p of
-      Forall n t p -> do
-        produceGoal p
+      Forall n t p -> produceGoal p
     
-      Exists n t p -> do
-        introduceV n t
+      Exists n t p -> produceGoal p
+
+      ForallType t p -> do
+        introduceTV t
         produceGoal p
     
       Equal l r -> do
@@ -350,8 +360,12 @@ splitProposition p = do
         introduceV n t
         produceIH p
     
-      Exists n t p -> produceIH p
+      Exists n t p -> do
+        introduceEx [] n t
+        produceIH p
     
+      ForallType t p -> error "Don't know how to deal with this"
+
       Equal l r -> do
         l <- exprToTerm l
         r <- exprToTerm r
