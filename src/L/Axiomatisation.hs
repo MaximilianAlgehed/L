@@ -185,6 +185,7 @@ patternToTerm t p = case p of
 
 functionToEquations :: Decl -> AM [(String, Equation F)]
 functionToEquations d = do
+  -- Reset the variable context
   modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
   case d of
     FunDecl f@(Name fname) t xs body -> do
@@ -206,7 +207,6 @@ functionToEquations d = do
                   | (pat, expr) <- ps ]
     
               E e       -> do
-                -- Reset the variable context
                 (t, ts) <- getT f
                 sequence [ introduceV x t | (x, t) <- zip xs ts ]
                 f   <- getF f
@@ -225,33 +225,15 @@ functionToEquations d = do
 
     _ -> throwError "Argument to functionToEquations is not a function declaration"
 
-proposition :: [Name] -> Proposition -> AM (Equation F)
-proposition ns p = case p of
-  Forall n t p -> do
-    introduceV n t
-    proposition (n:ns) p
-
-  Exists n t p -> do
-    introduceEx ns n t
-    proposition ns p
-
-  Equal e0 e1 -> do
-    lhs <- exprToTerm e0
-    rhs <- exprToTerm e1
-    return (lhs :=: rhs)
-
-  Implies e0 e1 p -> do
-    e0 <- exprToTerm e0
-    e1 <- exprToTerm e1
-    lhs :=: rhs <- proposition ns p
-    return $ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs
-
-assume :: Name -> AM (String, Equation F)
+assume :: Name -> AM [(String, Equation F)]
 assume n@(Name nm) = do
   modify $ \s -> s { nextVarId = 0 }
   thmDef <- getThm n
-  p <- normaliseProp thmDef >>= proposition []
-  return (nm, p)
+  ps <- normaliseProp thmDef >>= axiom
+  if length ps == 1 then
+    return [(nm, head ps)]
+  else
+    return [ (nm ++ show i, p) | (i, p) <- zip [0..] ps ]
 
 addCPtrAxiom :: Name -> Type -> [Type] -> AM ()
 addCPtrAxiom (Name n) t ts = do
@@ -282,7 +264,7 @@ axiomatise ps = do
   axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ t _ _) <- ps, fst (splitCoreType t) /= Formula ]
   -- Introduce the axiom for `IfEq`
   let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
-  let eqlAx = ("def. (==)", build (app (fun (Function F_equals)) (map var [V 0, V 0])) :=: (build . con . fun . Function $ F_true))
+  let eqlAx = ("def. (==)", build (app (fun (Function F_equals)) (map var [V 0, V 0])) :=: true)
   modify $ \s -> s { theory = eqlAx : eqAx : axs ++ theory s }
 
 -- | Partially evaluate a proposition to get it
@@ -300,75 +282,40 @@ data Problem = Problem { goal        :: Equation F
 
 type InductionSchema = Proposition -> AM [Problem]
 
-splitProposition :: Proposition -> AM ([Equation F], Equation F, (Term F, Term F))
-splitProposition p = do
-  as <- produceAntecs p
-  vm <- gets variableMap
-  ih <- produceIH p
-  modify $ \s -> s { variableMap = vm }
-  g  <- produceGoal p
-  return (as, ih, g)
+axioms :: Proposition -> AM [Equation F]
+axioms p = go [] p
   where
-    produceAntecs :: Proposition -> AM [Equation F]
-    produceAntecs = go [] [] []
-      where
-        go exs axs as p = case p of
-          Forall n t p -> do
-            introduceEx exs n t
-            go (filter (/= n) exs) (n:axs) as p
-    
-          Exists n t p -> do
-            introduceEx axs n t
-            go (n:exs) (filter (/= n) axs) as p
-    
-          Equal _ _ -> return as
-    
-          Implies e0 e1 p -> do
-            l <- exprToTerm e0 
-            r <- exprToTerm e1
-            go exs axs ((l :=: r) : as) p
-    
-    produceGoal :: Proposition -> AM (Term F, Term F)
-    produceGoal p = case p of
+    go as p = case p of
       Forall n t p -> do
-        produceGoal p
-    
+        introduceV n t
+        go (n:as) p
       Exists n t p -> do
-        introduceV n t
-        produceGoal p
-    
+        introduceEx as n t
+        go as p
       Equal l r -> do
         l <- exprToTerm l
         r <- exprToTerm r
-        return (l, r)
-    
-      Implies _ _ p -> produceGoal p
-
-    produceIH :: Proposition -> AM (Equation F)
-    produceIH p = case p of
-      Forall n t p -> do
-        introduceV n t
-        produceIH p
-    
-      Exists n t p -> produceIH p
-    
-      Equal l r -> do
+        return [l :=: r]
+      NotEqual l r -> do
         l <- exprToTerm l
         r <- exprToTerm r
-        return (l :=: r)
-    
+        return [build (app (fun (Function F_equals)) [l, r]) :=: false]
       Implies e0 e1 p -> do
         e0 <- exprToTerm e0
         e1 <- exprToTerm e1
-        lhs :=: rhs <- produceIH p
-        return $ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs
+        axs <- go as p
+        return [ build (app (fun (Function FIfEq)) [e0, e1, lhs, rhs]) :=: rhs | lhs :=: rhs <- axs ]
+      And p q -> (++) <$> go as p <*> go as q
 
 hasExists :: Proposition -> Bool
 hasExists p = case p of
-  Forall _ _ p  -> hasExists p
-  Exists _ _ _  -> True
-  Implies _ _ p -> hasExists p
-  Equal _ _     -> False
+  Forall _ _ p   -> hasExists p
+  Exists _ _ _   -> True
+  Implies _ _ p  -> hasExists p
+  Equal _ _      -> False
+  NotEqual _ _   -> False
+  Implies _ _ p  -> hasExists p
+  And p q        -> hasExists p || hasExists q
 
 substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
 
@@ -386,8 +333,8 @@ structuralInduction (Forall n t prop) = do
   modify $ \s -> s { nextVarId = 1 } 
   mapVarTo n (build . var $ V idx)
   -- Split the proposition to get the antecedens
-  (ants, ih, (l, r)) <- splitProposition prop
-  let negGoal = build (app (fun (Function F_equals)) [l, r]) :=: false
+  [ih] <- axioms prop
+  negs <- axioms (negatedNFP prop)
   -- Introduce all the variables except for the one we are doing
   thy <- gets theory
   traceM (show prop)
@@ -402,13 +349,11 @@ structuralInduction (Forall n t prop) = do
         -- Get the constructor term
         c <- getF cn
         let term = apply t c vars
-        -- Antecedents
-        let antecs = substEq (con . skolem) . substEq (fromJust $ T.listToSubst [(V idx, term)]) <$> ants
         return $ Problem { goal = true :=: false 
-                         , antecedents = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] antecs]
                          , hypotheses  = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih)
                                          | (ih, i) <- zip ihs [0..] ]
-                                      ++ [ ("Negated goal", substEq (fromJust $ T.listToSubst [(V idx, subst (con . skolem) term)]) $ negGoal) ]
+                                      ++ [ ("Negated Goal " ++ show i, substEq (fromJust $ T.listToSubst [(V idx, subst (con . skolem) term)]) $ g)
+                                         | (i, g) <- zip [0..] negs ]
                          , background = thy
                          , lemmas = [] }
     | (cn, ts) <- def ]
@@ -424,14 +369,12 @@ structInductOnFirst prop = do
 
 withoutInduction :: InductionSchema
 withoutInduction prop = do
-  prop <- normaliseProp prop
-  (ants, _, (l, r)) <- splitProposition prop
-  let antecs = [ ("antecedent " ++ show i, ant) | (i, ant) <- zip [0..] ants ]
+  prop   <- normaliseProp prop
+  fromGoal <- axioms (negatedNFP prop)
   thy <- gets theory
   return [ Problem { goal = true :=: false
-                   , antecedents = antecs
                    , background = thy
-                   , hypotheses = [ ("Negated goal", build (app (fun (Function F_equals)) [l, r]) :=: (build . con . fun . Function $ F_false))]
+                   , hypotheses = [ ("Goal Assumption " ++ show i, p) | (i, p) <- zip [0..] fromGoal ]
                    , lemmas = [] } ]
 
 {- Function to test the induction schema generation -}
@@ -444,4 +387,4 @@ attack induct n prg = runAM $ do
       extras   <- mapM assume (snd p)
       problems <- induct (fst p)
       -- Add lemmas
-      return [ p { lemmas = lemmas p ++ extras } | p <- problems ]
+      return [ p { lemmas = lemmas p ++ concat extras } | p <- problems ]

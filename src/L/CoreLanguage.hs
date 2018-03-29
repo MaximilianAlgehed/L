@@ -1,10 +1,16 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module L.CoreLanguage where
+
+import Data.Data
+import Data.Typeable
+import Data.Generics.Uniplate.Data
+import Data.List
 
 import qualified L.TAbs as A
 import qualified L.Abs as A (Type(..), LIdent(..), UIdent(..), Constructor(..))
 
 -- Names
-newtype Name = Name { getName :: String } deriving (Ord, Eq)
+newtype Name = Name { getName :: String } deriving (Data, Typeable, Ord, Eq)
 
 instance Show Name where
   show = getName
@@ -16,27 +22,38 @@ type Program = [Decl]
 data Type = MonoType Name
           | FunctionType Type Type
           | Formula
-          deriving (Ord, Eq)
+          deriving (Data, Typeable, Ord, Eq)
 
 instance Show Type where
   show (FunctionType t0 t1) = "(" ++ show t0 ++ " -> " ++ show t1 ++ ")"
   show (MonoType n)         = show n
+  show Formula              = "Formula"
 
 -- All declarations
 data Decl = DataDecl    Name [(Name, [Type])]
-          | FunDecl     Name Type [Name] Body
+          | FunDecl     Name Type [Name] {- Expression variables -} Body
           | TheoremDecl Name Proposition [Name]
           deriving (Ord, Eq, Show)
 
 -- Propositions
-data Proposition = Forall  Name Type Proposition
-                 | Exists  Name Type Proposition
-                 | Equal   Expr Expr
-                 | Implies Expr Expr Proposition
+data Proposition = Forall   Name Type Proposition
+                 | Exists   Name Type Proposition
+                 | Equal    Expr Expr
+                 | NotEqual Expr Expr
+                 | Implies  Expr Expr Proposition
+                 | And      Proposition Proposition
                  -- Things introduced by expressions
                  | PFApp   Name [Expr]
                  | PVar    Name
                  deriving (Ord, Eq, Show)
+
+-- Negate a proposition
+negatedNFP :: Proposition -> Proposition
+negatedNFP p = case p of
+  Forall n t p   -> Exists n t (negatedNFP p)
+  Exists n t p   -> Forall n t (negatedNFP p)
+  Equal l r      -> NotEqual l r
+  Implies l r p  -> And (Equal l r) (negatedNFP p)
 
 -- Function bodies
 data Body = Case Name [(Pattern, Expr)]
