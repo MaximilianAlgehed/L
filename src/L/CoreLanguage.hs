@@ -38,16 +38,27 @@ data Decl = DataDecl    Name [(Name, [Type])]
           deriving (Ord, Eq, Show)
 
 -- Propositions
-data Proposition = Forall  Name Type Proposition
-                 | Exists  Name Type Proposition
-                 | Equal   Expr Expr
-                 | Implies Expr Expr Proposition
+data Proposition = Forall   Name Type Proposition
+                 | Exists   Name Type Proposition
+                 | Equal    Expr Expr
+                 | NotEqual Expr Expr
+                 | Implies  Expr Expr Proposition
+                 | And      Proposition Proposition
+                 -- Quantification over types
+                 | ForallType Name Proposition
                  -- Things introduced by expressions
                  | PFApp   Name [Type] [Expr]
                  | PVar    Name
-                 -- Quantification over types
-                 | ForallType Name Proposition
                  deriving (Ord, Eq, Show)
+
+-- Negate a proposition
+negatedNFP :: Proposition -> Proposition
+negatedNFP p = case p of
+  Forall n t p   -> Exists n t (negatedNFP p)
+  Exists n t p   -> Forall n t (negatedNFP p)
+  Equal l r      -> NotEqual l r
+  Implies l r p  -> And (Equal l r) (negatedNFP p)
+  ForallType t p -> ForallType t (negatedNFP p)
 
 -- Function bodies
 data Body = Case Name [(Pattern, Expr)]
