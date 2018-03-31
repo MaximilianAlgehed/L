@@ -1,6 +1,13 @@
 {-# LANGUAGE FlexibleInstances, TupleSections #-}
 module L.Axiomatisation where
 
+{- TODO when implementing polymorphism:
+ - * Make sure to substitute the types in
+ -   the type-tags from applications
+ - * Make sure the arity of a function
+ -   includes the types
+ -}
+
 import GHC.Stack
 import Debug.Trace
 
