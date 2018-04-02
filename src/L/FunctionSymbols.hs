@@ -24,7 +24,8 @@ data FI = F { arityF :: Int
             , nameF  :: Name
             , invis  :: Bool
             }
-        | T { typ    :: Type
+        | T { typ    :: Name
+            , arityF :: Int
             , invis  :: Bool }
         | FT { invis  :: Bool }
         | TT { invis :: Bool }
@@ -47,7 +48,6 @@ instance Arity FI where
   arity F_false     = 0
   arity F_equals    = 2
   arity FIfEq       = 4
-  arity (T _ _)     = 0
   arity (FT _)      = 2
   arity (TT _)      = 2
   arity (Apply _)   = 2
@@ -59,7 +59,7 @@ instance Pretty FI where
   pPrint F_false       = text "false"
   pPrint F_equals      = text "=="
   pPrint FIfEq         = text "ifEq"
-  pPrint t@(T _ _)     = text . show . typ $ t
+  pPrint (T n _ _)     = text (show n)
   pPrint (FT _)        = text "fun"
   pPrint (TT _)        = text "tt"
   pPrint (Apply _)     = text "$"

@@ -4,8 +4,12 @@ module L.Axiomatisation where
 {- TODO when implementing polymorphism:
  - * Make sure to substitute the types in
  -   the type-tags from applications
+ -
  - * Make sure the arity of a function
  -   includes the types
+ -
+ - * Type constructors applied to arguments like:
+ -    `Maybe a` turn into the term `maybe(a)`
  -}
 
 import GHC.Stack
@@ -42,7 +46,7 @@ data AState = S { nameMap       :: M.Map Name F
                 , variableMap   :: M.Map Name (Term F) 
                 , variableTypes :: M.Map Name Type
                 , typeVarMap    :: M.Map Name (Term F)
-                , definitions   :: M.Map Type [(Name, [Type])]
+                , definitions   :: M.Map Name ([Name], [(Name, [Type])])
                 , theorems      :: M.Map Name Proposition
                 , funDefs       :: M.Map Name ([Name], [Name], Body)
                 , nextVarId     :: Int
@@ -63,7 +67,7 @@ addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n False) (nam
 addT :: Name -> (Type, [Type]) -> AM ()
 addT n t = modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
 
-addDDef :: Type -> [(Name, [Type])] -> AM ()
+addDDef :: Name -> ([Name], [(Name, [Type])]) -> AM ()
 addDDef t d = modify $ \s -> s { definitions = M.insert t d (definitions s) }
 
 addDef :: Name -> ([Name], [Name], Body) -> AM ()
@@ -99,11 +103,10 @@ getT n = do
       nt <- gets nameTypes
       maybe (throwError "Unknown type error") return (M.lookup n nt)
 
-getDef :: Type -> AM [(Name, [Type])]
-getDef t@(MonoType _) = do
+getDef :: Name -> AM ([Name], [(Name, [Type])])
+getDef n = do
   defs <- gets definitions
-  maybe (throwError "Unknown definition error") return (M.lookup t defs)
-getDef _ = return []
+  maybe (throwError "Unknown definition error") return (M.lookup n defs)
 
 introduceV :: Name -> Type -> AM ()
 introduceV n t = do
@@ -166,8 +169,8 @@ tt typ te = build (app (fun (Function (TT hideTypeTags))) [typ, te])
 typeTag :: Type -> Term F -> Term F
 typeTag = tt . (build . go)
   where
-    go t@(MonoType _)       = con . fun . Function $ T t hideTypeTags
-    go (FunctionType t0 t1) = app (fun $ Function (FT hideTypeTags)) $ [ go t0 , go t1 ]
+    go t@(TypeApp n ts)     = app (fun $ Function (T n (length ts) hideTypeTags)) (map go ts)
+    go (FunctionType t0 t1) = app (fun $ Function (FT hideTypeTags)) [ go t0 , go t1 ]
 
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of
@@ -243,7 +246,7 @@ assume :: Name -> AM [(String, Equation F)]
 assume n@(Name nm) = do
   modify $ \s -> s { nextVarId = 0 }
   thmDef <- getThm n
-  ps <- normaliseProp thmDef >>= axiom
+  ps <- normaliseProp thmDef >>= axioms
   if length ps == 1 then
     return [(nm, head ps)]
   else
@@ -262,13 +265,13 @@ axiomatise ps = do
   -- Introduce all defintions and constructors to the context
   sequence_ [ do
                 -- Definitions
-                addDDef (MonoType t) cs
+                addDDef t (targs, cs)
                 -- Constructors
                 sequence [ do addF n (length ts)
-                              addT n (MonoType t, ts)
-                              unless (null ts) $ addCPtrAxiom n (MonoType t) ts
+                              addT n (TypeApp t (TypeVar <$> targs), ts)
+                              unless (null ts) $ addCPtrAxiom n (TypeApp t (TypeVar <$> targs)) ts
                          | (n, ts) <- cs ]
-            | DataDecl t cs <- ps ]
+            | DataDecl t targs cs <- ps ]
   -- Introduce all functions to the context
   sequence_ [ addF n (length ts + length ns) >> addT n (splitCoreType t) >> addDef n (ts, ns, body)
             | FunDecl n t ts ns body <- ps ]
@@ -344,8 +347,8 @@ true  = (build . con . fun . Function $ F_true)
 -- Generates an induction schema where the first variable in the proposition 
 -- to be proven is of type `t` with definition `def`
 structuralInduction :: InductionSchema
-structuralInduction (Forall n t prop) = do
-  def <- getDef t
+structuralInduction (Forall n t@(TypeApp tn typeArgs) prop) = do
+  (argNames, def) <- getDef tn
   -- Introduce the fist type variable as just a variable
   let idx = 0
   modify $ \s -> s { nextVarId = 1 } 
@@ -358,9 +361,11 @@ structuralInduction (Forall n t prop) = do
   traceM (show prop)
   sequence
     [ do
+        let ts = flip substTypeList (zip argNames typeArgs) <$> tsIn
         -- One skolem variable for each recursive occurance of the type `t`
         -- and a normal variable otherwise
-        vars <- sequence [ if t == t' then freshSkolem t' else freshVar t' | t' <- ts ]
+        vars <- sequence [ if t == t' then freshSkolem t' else freshVar t'
+                         | t' <- ts ]
         let skolems = [ v | (v, t') <- zip vars ts, t == t' ]
         -- Create I.H for each skolem variable
         let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) ih | sk <- skolems ]
@@ -374,7 +379,7 @@ structuralInduction (Forall n t prop) = do
                                          | (i, g) <- zip [0..] negs ]
                          , background = thy
                          , lemmas = [] }
-    | (cn, ts) <- def ]
+    | (cn, tsIn) <- def ]
 
 -- Do structural induction on the first argument
 structInductOnFirst :: InductionSchema

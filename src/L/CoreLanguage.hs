@@ -19,20 +19,20 @@ instance Show Name where
 type Program = [Decl]
 
 -- Types
-data Type = MonoType Name
-          | FunctionType Type Type
+data Type = FunctionType Type Type
           | Formula
           | TypeVar Name
+          | TypeApp Name [Type]
           deriving (Data, Typeable, Ord, Eq)
 
 instance Show Type where
   show (FunctionType t0 t1) = "(" ++ show t0 ++ " -> " ++ show t1 ++ ")"
-  show (MonoType n)         = show n
   show Formula              = "Formula"
   show (TypeVar n)          = show n
+  show (TypeApp n ts)       = show n ++ " " ++ intercalate " " (map show ts)
 
 -- All declarations
-data Decl = DataDecl    Name [(Name, [Type])]
+data Decl = DataDecl    Name [Name] [(Name, [Type])]
           | FunDecl     Name Type [Name] {- Type variables -} [Name] {- Expression variables -} Body
           | TheoremDecl Name Proposition [Name]
           deriving (Ord, Eq, Show)
@@ -87,7 +87,7 @@ splitCoreType = go []
     go ts t                    = (t, reverse ts)
 
 transType :: A.Type -> Type
-transType (A.MonoType (A.UIdent t)) = MonoType (Name t)
+transType (A.MonoType (A.UIdent t)) = TypeApp (Name t) []
 transType (A.FunType t0 t1) = FunctionType (transType t0) (transType t1)
 transType A.Formula = Formula
 
@@ -101,12 +101,16 @@ substType t (x, t') = transform go t
       | n == x = t'
     go _ = t
 
+substTypeList :: Type -> [(Name, Type)] -> Type
+substTypeList t ss = foldr (flip substType) t ss
+
 surfaceToCore :: A.Program -> Program
 surfaceToCore (A.P ds) = concatMap decl ds
   where
     decl :: A.Decl -> [Decl]
     decl d = case d of
-      A.DData (A.UIdent n) cs -> [DataDecl (Name n) (map constructor cs)]
+      -- FIXME: Make sure to give the right type variables here
+      A.DData (A.UIdent n) cs -> [DataDecl (Name n) [] (map constructor cs)]
 
       A.DFun (A.LIdent n) t xs b ->
         [ FunDecl (Name n) (transType t) (ftv (transType t)) [ Name x | A.LIdent x <- xs ] (body b)]
