@@ -2,11 +2,8 @@
 module L.Axiomatisation where
 
 {- TODO when implementing polymorphism:
- - * Make sure to substitute the types in
- -   the type-tags from applications
- -
  - * Make sure the arity of a function
- -   includes the types
+ -   includes the type arguments
  -
  - * Make sure the correct type variables are
  -   substituted when substituting in function
@@ -83,7 +80,7 @@ getThm n = do
   thm <- gets theorems
   maybe (throwError "Unknown theorem") return (M.lookup n thm)
 
-getF :: Name -> AM F
+getF :: Name -> AM (F, [Name])
 getF n = do
   -- Check if the function we are looking for is locally bound
   vm <- gets variableMap
@@ -180,9 +177,9 @@ typeToTerm = undefined
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of
   FApp n ts es -> do
-    f <- getF n
+    (f, ns) <- getF n
     (tres_, targs_) <- getT n
-    let ss    = error "FIXME"
+    let ss    = zip ns ts
     let tres  = substTypeList tres_ ss
     let targs = map (flip substTypeList ss) targs
     let t = foldr FunctionType tres (drop (length es) targs)
@@ -201,12 +198,15 @@ exprToTerm e = case e of
 
   Var n -> getV n 
 
+-- FIXME: Figure out the right
+-- type variables and the order in which they are applied here
+-- based on looking at the case statement
 patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
-  ConstructorPattern n ps -> do
-    f <- getF n
+  ConstructorPattern n ts ps -> do
+    (f, _) <- getF n
     (t, ts) <- getT n
-    apply t f <$> zipWithM patternToTerm ts ps
+    apply t f ts <$> zipWithM patternToTerm ts ps
 
   VariablePattern n -> do
     introduceV n t
@@ -223,7 +223,7 @@ functionToEquations d = do
                   [ do modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
                        (t, ts) <- getT f
                        sequence [ introduceV x t | (x, t) <- zip xs ts ]
-                       f       <- getF f 
+                       (f, _) <- getF f 
                        xs_     <- mapM getV xs
                        typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
                          []    -> throwError $ "Unknown variable error in case: " ++ show x
@@ -238,7 +238,7 @@ functionToEquations d = do
               E e       -> do
                 (t, ts) <- getT f
                 sequence [ introduceV x t | (x, t) <- zip xs ts ]
-                f   <- getF f
+                (f, _)  <- getF f
                 xs' <- mapM getV xs
                 e   <- exprToTerm e
                 return [("def. " ++ fname, apply t f ts xs' :=: e)]
@@ -246,7 +246,7 @@ functionToEquations d = do
       modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
       (t, ts) <- getT f
       sequence [ introduceV x t | (x, t) <- zip xs ts ]
-      f'      <- getF f 
+      (f', _) <- getF f 
       xs_     <- mapM getV xs
       let typ = foldr FunctionType t ts
       let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (typeTag typ (specific f) : map typeToTerm ts)
@@ -270,8 +270,9 @@ addCPtrAxiom (Name n) t ts = do
   modify $ \s -> s { nextVarId = 0 }
   let typ = foldr FunctionType t ts
   xs <- mapM freshVar ts
-  f' <- getF (Name n)
-  modify $ \s -> s { theory = ("apply " ++ n, apps (typeTag typ (specific (Name n)), typ) xs :=: apply t f' xs) : theory s }
+  (f', _) <- getF (Name n)
+  let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (typeTag typ (specific (Name n)) : map typeToTerm ts)
+  modify $ \s -> s { theory = ("apply " ++ n, apps (fptr, typ) xs :=: apply t f' ts xs) : theory s }
 
 axiomatise :: Program -> AM ()
 axiomatise ps = do
@@ -305,7 +306,6 @@ normaliseProp p = do
   lift . E.runEval ds . E.normaliseProp $ p
 
 data Problem = Problem { goal        :: Equation F
-                       , antecedents :: [(String, Equation F)]
                        , hypotheses  :: [(String, Equation F)]
                        , lemmas      :: [(String, Equation F)]
                        , background  :: [(String, Equation F)] }
@@ -347,7 +347,6 @@ hasExists p = case p of
   Implies _ _ p  -> hasExists p
   Equal _ _      -> False
   NotEqual _ _   -> False
-  Implies _ _ p  -> hasExists p
   And p q        -> hasExists p || hasExists q
   ForallType _ p -> hasExists p
 
@@ -383,7 +382,7 @@ structuralInduction (Forall n t@(TypeApp tn typeArgs) prop) = do
         -- Create I.H for each skolem variable
         let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) ih | sk <- skolems ]
         -- Get the constructor term
-        c <- getF cn
+        (c, _) <- getF cn
         let term = apply t c ts vars
         return $ Problem { goal = true :=: false 
                          , hypotheses  = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih)

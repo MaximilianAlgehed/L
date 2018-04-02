@@ -66,7 +66,7 @@ data Body = Case Name [(Pattern, Expr)]
           deriving (Ord, Eq, Show)
 
 -- Patterns on the form "C0 x0 x1 (C1 x2 ...) ..."
-data Pattern = ConstructorPattern Name [Pattern]
+data Pattern = ConstructorPattern Name [Type] [Pattern]
              | VariablePattern    Name
              deriving (Ord, Eq, Show)
 
@@ -157,7 +157,8 @@ surfaceToCore (A.P ds) = concatMap decl ds
     pattern :: A.Pat -> Pattern
     pattern p = case p of
       A.PVar _ (A.LIdent n)  -> VariablePattern (Name n)
-      A.PCon (A.UIdent n) ps -> ConstructorPattern (Name n) (map pattern ps)
+      -- FIXME: Figure out the right type variables to apply to
+      A.PCon (A.UIdent n) ps -> ConstructorPattern (Name n) [] (map pattern ps)
 
     expr :: A.Expr -> Expr
     expr e = case e of
