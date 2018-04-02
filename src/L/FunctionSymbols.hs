@@ -32,6 +32,7 @@ data FI = F { arityF :: Int
         | SFPtr { invis :: Bool
                 , nameF :: Name }
         | FPtr (Term F) Type
+        | TypeApply { arityF :: Int, invis :: Bool }
         | Apply { invis :: Bool }
         | Skf { skIdx :: Int, artiyF :: Int }
         | FIfEq
