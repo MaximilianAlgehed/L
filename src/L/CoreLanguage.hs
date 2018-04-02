@@ -156,15 +156,14 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     pattern :: A.Pat -> Pattern
     pattern p = case p of
-      A.PVar _ (A.LIdent n)  -> VariablePattern (Name n)
-      -- FIXME: Figure out the right type variables to apply to
-      A.PCon (A.UIdent n) ps -> ConstructorPattern (Name n) [] (map pattern ps)
+      A.PVar _ (A.LIdent n)     -> VariablePattern (Name n)
+      A.PCon (A.UIdent n) ts ps -> ConstructorPattern (Name n) (map typ ts) (map pattern ps)
 
     expr :: A.Expr -> Expr
     expr e = case e of
       A.EVar _ (A.LIdent x) -> Var (Name x)
       A.ECon _ (A.UIdent c) -> FApp (Name c) [] []
-      A.EApp _ fun es       -> FApp (name fun) [] (map expr es)
+      A.EApp _ fun ts es    -> FApp (name fun) (map typ ts) (map expr es)
       _                     -> Prop (proposition e)
       where
         name (A.EVar _ (A.LIdent n)) = Name n

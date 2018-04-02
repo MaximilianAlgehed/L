@@ -8,7 +8,7 @@ data Program = P [Decl]
 
 data Decl
     = DData UIdent [Constructor]
-    | DFun LIdent Type [LIdent] Expr
+    | DFun LIdent Type [LIdent] [LIdent] Expr
     | DThm Thm
   deriving (Eq, Ord, Show, Read)
 
@@ -19,19 +19,19 @@ data Thm
 data Expr
     = EVar   { exprType :: Type, exprVar     :: LIdent }
     | ECon   { exprType :: Type, exprCon     :: UIdent }
-    | EApp   { exprType :: Type, exprFun     :: Expr,     exprArgs     :: [Expr] }
-    | ECase  { exprType :: Type, exprCaseOn  :: Expr,     exprAlts     :: [Alt]  }
-    | ELam   { exprType :: Type, exprAbsVar  :: LIdent,   exprBody     :: Expr   }
-    | EEqual { exprType :: Type, exprLhs     :: Expr,     exprRhs      :: Expr   }
-    | EImpl  { exprType :: Type, exprLhs     :: Expr,     exprRhs      :: Expr, exprConsequent :: Expr }
-    | EAll   { exprType :: Type, exprAllArgs :: [LIdent], exprArgsType :: Type, exprProp       :: Expr }
-    | EEx    { exprType :: Type, exprExArgs  :: [LIdent], exprArgsType :: Type, exprProp       :: Expr }
+    | ECase  { exprType :: Type, exprCaseOn  :: Expr,     exprAlts     :: [Alt]   }
+    | ELam   { exprType :: Type, exprAbsVar  :: LIdent,   exprBody     :: Expr    }
+    | EEqual { exprType :: Type, exprLhs     :: Expr,     exprRhs      :: Expr    }
+    | EImpl  { exprType :: Type, exprLhs     :: Expr,     exprRhs      :: Expr,   exprConsequent :: Expr }
+    | EAll   { exprType :: Type, exprAllArgs :: [LIdent], exprArgsType :: Type,   exprProp       :: Expr }
+    | EEx    { exprType :: Type, exprExArgs  :: [LIdent], exprArgsType :: Type,   exprProp       :: Expr }
+    | EApp   { exprType :: Type, exprFun     :: Expr,     exprTypeArgs :: [Type], exprArgs     :: [Expr] }
   deriving (Eq, Ord, Show, Read)
 
 data Alt = A Pat Expr
   deriving (Eq, Ord, Show, Read)
 
-data Pat = PVar Type LIdent | PCon UIdent [Pat]
+data Pat = PVar Type LIdent | PCon UIdent [Type] [Pat]
   deriving (Eq, Ord, Show, Read)
 
 split :: Type -> (Type, [Type])

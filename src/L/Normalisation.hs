@@ -52,7 +52,7 @@ isDefinedFunction f = do
 normalise :: Program -> Program
 normalise (P pgm) = runNorm $ do
   push
-  sequence_ [introduce f t | DFun f t _ _ <- pgm]
+  sequence_ [introduce f t | DFun f t _ _ _ <- pgm]
   P . concat <$> mapM normaliseDecl pgm
 
 normaliseDecl :: Decl -> NM [Decl]
@@ -108,10 +108,10 @@ normaliseFunctionBody f inputExpr = case inputExpr of
 
 normaliseExpr :: LIdent -> Expr -> NM (Expr, [Decl])
 normaliseExpr f inputExpr = case inputExpr of
-    EApp t fun xs  -> do
+    EApp t fun ts xs  -> do
       fun_dsF <- normaliseExpr f fun
       es_ds <- mapM (normaliseExpr f) xs
-      return $ (app t (fst fun_dsF) (map fst es_ds), snd fun_dsF ++ concatMap snd es_ds)
+      return $ (app t (fst fun_dsF) ts (map fst es_ds), snd fun_dsF ++ concatMap snd es_ds)
 
     ECase t ec as -> do
       nf       <- next f
@@ -142,9 +142,9 @@ free e = case e of
     def <- isDefinedFunction v
     if def then return [] else return [(v, t)]
 
-  ECon t c -> return []
+  ECon _ _ -> return []
 
-  EApp t f es -> union <$> free f <*> (foldr union [] <$> mapM free es)
+  EApp _ f _ es -> union <$> free f <*> (foldr union [] <$> mapM free es)
 
   ECase t ec as -> union <$> free ec <*> (foldr union [] <$> sequence [ (\\ vars p) <$> free e | A p e <- as ])
 
@@ -156,14 +156,14 @@ free e = case e of
 
 vars :: Pat -> [(LIdent, Type)]
 vars p = case p of
-  PVar t v -> [(v, t)]
-  PCon _ ps -> foldr union [] (vars <$> ps)
+  PVar t v    -> [(v, t)]
+  PCon _ _ ps -> foldr union [] (vars <$> ps)
 
-app :: Type -> Expr -> [Expr] -> Expr
-app t f xs = case f of
-  EApp _ f es   -> EApp t f (es ++ xs)
-  ECase _ ec as -> ECase t ec [ A p (app t e xs) | A p e <- as ]
-  _             -> EApp t f xs
+app :: Type -> Expr -> [Type] -> [Expr] -> Expr
+app t f ts' xs = case f of
+  EApp _ f ts es -> EApp t f (ts ++ ts') (es ++ xs)
+  ECase _ ec as  -> ECase t ec [ A p (app t e ts' xs) | A p e <- as ]
+  _              -> EApp t f ts' xs
 
 normaliseAlternative :: LIdent -> Alt -> NM (Alt, [Decl])
 normaliseAlternative f a = case a of
@@ -176,5 +176,5 @@ normaliseAlternative f a = case a of
 
 introducePatternVariables :: Pat -> NM ()
 introducePatternVariables p = case p of
-  PVar t x  -> introduce x t
-  PCon _ ps -> mapM_ introducePatternVariables ps
+  PVar t x    -> introduce x t
+  PCon _ _ ps -> mapM_ introducePatternVariables ps

@@ -1,13 +1,9 @@
 {-# LANGUAGE FlexibleInstances, TupleSections #-}
 module L.Axiomatisation where
 
-{- TODO when implementing polymorphism:
+{- FIXME:
  - * Make sure the arity of a function
  -   includes the type arguments
- -
- - * Make sure the correct type variables are
- -   substituted when substituting in function
- -   applications
  -}
 
 import GHC.Stack
@@ -198,9 +194,6 @@ exprToTerm e = case e of
 
   Var n -> getV n 
 
--- FIXME: Figure out the right
--- type variables and the order in which they are applied here
--- based on looking at the case statement
 patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
   ConstructorPattern n ts ps -> do
