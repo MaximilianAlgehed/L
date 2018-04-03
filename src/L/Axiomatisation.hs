@@ -37,7 +37,7 @@ apply resT f types ts = case f of
   _ -> typeTag resT (build (app (fun f) $ (typeToTerm <$> types) ++ ts))
 
 data AState = S { nameMap       :: M.Map Name F
-                , nameTypes     :: M.Map Name (Type, [Type])
+                , nameTypes     :: M.Map Name (Type, [Type], [Name])
                 , variableMap   :: M.Map Name (Term F) 
                 , variableTypes :: M.Map Name Type
                 , typeVarMap    :: M.Map Name (Term F)
@@ -59,7 +59,7 @@ runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.em
 addF :: Name -> Int -> AM ()
 addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n False) (nameMap s) }
 
-addT :: Name -> (Type, [Type]) -> AM ()
+addT :: Name -> (Type, [Type], [Name]) -> AM ()
 addT n t = modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
 
 addDDef :: Name -> ([Name], [(Name, [Type])]) -> AM ()
@@ -76,7 +76,7 @@ getThm n = do
   thm <- gets theorems
   maybe (throwError "Unknown theorem") return (M.lookup n thm)
 
-getF :: Name -> AM (F, [Name])
+getF :: Name -> AM F
 getF n = do
   -- Check if the function we are looking for is locally bound
   vm <- gets variableMap
@@ -89,7 +89,7 @@ getF n = do
       nm <- gets nameMap
       maybe (throwError $ "Unknown function symbol error: " ++ show n) return (M.lookup n nm)
 
-getT :: HasCallStack => Name -> AM (Type, [Type])
+getT :: HasCallStack => Name -> AM (Type, [Type], [Name])
 getT n = do
   vt <- gets variableTypes
   case M.lookup n vt of
@@ -148,8 +148,8 @@ getV n = do
   vm <- gets variableMap
   case M.lookup n vm of
     Nothing -> do
-      t <- getT n
-      return (typeTag (foldr FunctionType (fst t) (snd t)) $ specific n)
+      (t, ts, _) <- getT n
+      return (typeTag (foldr FunctionType t ts) $ specific n)
     Just v  -> return v
 
 freshSkolem :: Type -> AM (Term F)
@@ -173,8 +173,8 @@ typeToTerm = undefined
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of
   FApp n ts es -> do
-    (f, ns) <- getF n
-    (tres_, targs_) <- getT n
+    f <- getF n
+    (tres_, targs_, ns) <- getT n
     let ss    = zip ns ts
     let tres  = substTypeList tres_ ss
     let targs = map (flip substTypeList ss) targs
@@ -197,8 +197,8 @@ exprToTerm e = case e of
 patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
   ConstructorPattern n ts ps -> do
-    (f, _) <- getF n
-    (t, ts) <- getT n
+    f <- getF n
+    (t, ts, _) <- getT n
     apply t f ts <$> zipWithM patternToTerm ts ps
 
   VariablePattern n -> do
@@ -214,9 +214,9 @@ functionToEquations d = do
       es <- case body of
               Case x ps -> sequence
                   [ do modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
-                       (t, ts) <- getT f
+                       (t, ts, _) <- getT f
                        sequence [ introduceV x t | (x, t) <- zip xs ts ]
-                       (f, _) <- getF f 
+                       f <- getF f 
                        xs_     <- mapM getV xs
                        typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
                          []    -> throwError $ "Unknown variable error in case: " ++ show x
@@ -229,17 +229,17 @@ functionToEquations d = do
                   | (pat, expr) <- ps ]
     
               E e       -> do
-                (t, ts) <- getT f
+                (t, ts, _) <- getT f
                 sequence [ introduceV x t | (x, t) <- zip xs ts ]
-                (f, _)  <- getF f
+                f  <- getF f
                 xs' <- mapM getV xs
                 e   <- exprToTerm e
                 return [("def. " ++ fname, apply t f ts xs' :=: e)]
 
       modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
-      (t, ts) <- getT f
+      (t, ts, _) <- getT f
       sequence [ introduceV x t | (x, t) <- zip xs ts ]
-      (f', _) <- getF f 
+      f' <- getF f 
       xs_     <- mapM getV xs
       let typ = foldr FunctionType t ts
       let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (typeTag typ (specific f) : map typeToTerm ts)
@@ -263,7 +263,7 @@ addCPtrAxiom (Name n) t ts = do
   modify $ \s -> s { nextVarId = 0 }
   let typ = foldr FunctionType t ts
   xs <- mapM freshVar ts
-  (f', _) <- getF (Name n)
+  f' <- getF (Name n)
   let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (typeTag typ (specific (Name n)) : map typeToTerm ts)
   modify $ \s -> s { theory = ("apply " ++ n, apps (fptr, typ) xs :=: apply t f' ts xs) : theory s }
 
@@ -275,7 +275,7 @@ axiomatise ps = do
                 addDDef t (targs, cs)
                 -- Constructors
                 sequence [ do addF n (length ts)
-                              addT n (TypeApp t (TypeVar <$> targs), ts)
+                              addT n (TypeApp t (TypeVar <$> targs), ts, targs)
                               unless (null ts) $ addCPtrAxiom n (TypeApp t (TypeVar <$> targs)) ts
                          | (n, ts) <- cs ]
             | DataDecl t targs cs <- ps ]
@@ -285,7 +285,7 @@ axiomatise ps = do
   -- Introduce all theorems to the context
   sequence_ [ addThm n p | TheoremDecl n p _ <- ps ]
   -- Compute axiomatisation from the functions
-  axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ t _ _ _) <- ps, fst (splitCoreType t) /= Formula ]
+  axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ t _ _ _) <- ps, (\(t, _, _) -> t) (splitCoreType t) /= Formula ]
   -- Introduce the axiom for `IfEq`
   let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
   let eqlAx = ("def. (==)", build (app (fun (Function F_equals)) (map var [V 0, V 0])) :=: true)
@@ -375,7 +375,7 @@ structuralInduction (Forall n t@(TypeApp tn typeArgs) prop) = do
         -- Create I.H for each skolem variable
         let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) ih | sk <- skolems ]
         -- Get the constructor term
-        (c, _) <- getF cn
+        c <- getF cn
         let term = apply t c ts vars
         return $ Problem { goal = true :=: false 
                          , hypotheses  = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih)

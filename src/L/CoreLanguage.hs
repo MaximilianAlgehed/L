@@ -23,6 +23,7 @@ data Type = FunctionType Type Type
           | Formula
           | TypeVar Name
           | TypeApp Name [Type]
+          | TypeAll Name Type
           deriving (Data, Typeable, Ord, Eq)
 
 instance Show Type where
@@ -77,14 +78,18 @@ data Expr = FApp Name [Type] [Expr]
           deriving (Ord, Eq, Show)
 
 {- Translate surface syntax to core syntax -}
-splitType :: A.Type -> (Type, [Type])
+splitType :: A.Type -> (Type, [Type], [Name])
 splitType = splitCoreType . transType 
 
-splitCoreType :: Type -> (Type, [Type])
-splitCoreType = go []
+splitCoreType :: Type -> (Type, [Type], [Name])
+splitCoreType tin = let (t, ts) = go [] tin in (t, ts, boundTV tin)
   where
+    go ts (TypeAll _ t)        = go ts t
     go ts (FunctionType t0 t1) = go (t0 : ts) t1
     go ts t                    = (t, reverse ts)
+
+    boundTV (TypeAll n t) = n : boundTV t
+    boundTV t             = []
 
 transType :: A.Type -> Type
 transType (A.TypeApp (A.UIdent t) ts) = TypeApp (Name t) (transType <$> ts)
@@ -92,7 +97,7 @@ transType (A.FunType t0 t1) = FunctionType (transType t0) (transType t1)
 transType A.Formula = Formula
 
 ftv :: Type -> [Name]
-ftv t = nub [ n | TypeVar n <- universe t ]
+ftv = error "ftv not yet implemented"
 
 substType :: Type -> (Name, Type) -> Type
 substType t (x, t') = transform go t
