@@ -87,7 +87,7 @@ splitCoreType = go []
     go ts t                    = (t, reverse ts)
 
 transType :: A.Type -> Type
-transType (A.MonoType (A.UIdent t)) = TypeApp (Name t) []
+transType (A.TypeApp (A.UIdent t) ts) = TypeApp (Name t) (transType <$> ts)
 transType (A.FunType t0 t1) = FunctionType (transType t0) (transType t1)
 transType A.Formula = Formula
 
@@ -113,7 +113,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
       A.DData (A.UIdent n) cs -> [DataDecl (Name n) [] (map constructor cs)]
 
       A.DFun (A.LIdent n) t xs b ->
-        [ FunDecl (Name n) (transType t) (ftv (transType t)) [ Name x | A.LIdent x <- xs ] (body b)]
+        [ FunDecl (Name n) (transType t) [ Name n | A.LIdent n <- A.bound t ] [ Name n | A.LIdent n <- xs ] (body b)]
 
       A.DThm t -> [theorem t]
 
@@ -157,13 +157,13 @@ surfaceToCore (A.P ds) = concatMap decl ds
     pattern :: A.Pat -> Pattern
     pattern p = case p of
       A.PVar _ (A.LIdent n)     -> VariablePattern (Name n)
-      A.PCon (A.UIdent n) ts ps -> ConstructorPattern (Name n) (map typ ts) (map pattern ps)
+      A.PCon (A.UIdent n) ts ps -> ConstructorPattern (Name n) (transType <$> ts) (map pattern ps)
 
     expr :: A.Expr -> Expr
     expr e = case e of
       A.EVar _ (A.LIdent x) -> Var (Name x)
       A.ECon _ (A.UIdent c) -> FApp (Name c) [] []
-      A.EApp _ fun ts es    -> FApp (name fun) (map typ ts) (map expr es)
+      A.EApp _ fun ts es    -> FApp (name fun) (transType <$> ts) (map expr es)
       _                     -> Prop (proposition e)
       where
         name (A.EVar _ (A.LIdent n)) = Name n

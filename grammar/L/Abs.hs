@@ -28,7 +28,12 @@ data Thm
 data Constructor = C UIdent [Type]
   deriving (Eq, Ord, Show, Read)
 
-data Type = MonoType UIdent | FunType Type Type | Formula
+data Type
+    = Formula
+    | TypeVar LIdent
+    | FunType Type Type
+    | TypeApp UIdent [Type]
+    | TypeAll LIdent Type
   deriving (Eq, Ord, Show, Read)
 
 data Expr

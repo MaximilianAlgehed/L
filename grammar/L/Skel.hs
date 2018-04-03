@@ -34,9 +34,11 @@ transConstructor x = case x of
   C uident types -> failure x
 transType :: Type -> Result
 transType x = case x of
-  MonoType uident -> failure x
-  FunType type_1 type_2 -> failure x
   Formula -> failure x
+  TypeVar lident -> failure x
+  FunType type_1 type_2 -> failure x
+  TypeApp uident types -> failure x
+  TypeAll lident type_ -> failure x
 transExpr :: Expr -> Result
 transExpr x = case x of
   EVar lident -> failure x

@@ -118,6 +118,19 @@ instance TypeCheckable Pat where
       unless (length ps == length argst) (typeError 10)
       T.PCon c <$> zipWithM typeCheck (map Just argst) ps 
 
+{- FIXME
+ - * Implementaiton of polymorphic inference for function
+ - applcation of a function with known type is the following:
+ -
+ -  - If a normal function is being applied we replace its
+ -    type arguments with fresh variables and substitute the
+ -    variables in the type of the function and unify all types
+ -    and apply the resulting substitutions everywhere
+ -
+ -  - If we are applying an expression we compute the free
+ -    type variables left after type inference for that expression
+ -    and do a type application like described above.
+ -}
 instance TypeCheckable Expr where
   type Checked Expr = (Type, T.Expr)
   typeCheck _ e = case e of

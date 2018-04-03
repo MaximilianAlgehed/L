@@ -23,16 +23,18 @@ separator Constructor "|";
 separator nonempty LIdent "";
 
 -- Constructors
-C. Constructor ::= UIdent [Type];
+C. Constructor ::= UIdent [Type2];
 
-separator Type "";
+separator Type2 "";
 
 -- Types
-MonoType. Type1 ::= UIdent;
-FunType.  Type  ::= Type1 "->" Type;
-Formula.  Type1 ::= "Formula";
+Formula.  Type2 ::= "Formula";
+TypeVar.  Type2 ::= LIdent;
+FunType.  Type1 ::= Type2 "->" Type;
+TypeApp.  Type  ::= UIdent [Type2];
+TypeAll.  Type  ::= "forall" LIdent "." Type;
 
-coercions Type 1;
+coercions Type 2;
 
 -- Expressions
 EVar.   Expr2  ::= LIdent;

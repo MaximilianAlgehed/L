@@ -52,7 +52,7 @@ isDefinedFunction f = do
 normalise :: Program -> Program
 normalise (P pgm) = runNorm $ do
   push
-  sequence_ [introduce f t | DFun f t _ _ _ <- pgm]
+  sequence_ [introduce f t | DFun f t _ _ <- pgm]
   P . concat <$> mapM normaliseDecl pgm
 
 normaliseDecl :: Decl -> NM [Decl]
@@ -64,14 +64,13 @@ normaliseDecl d = case d of
                     newVars <- replicateM (length ts - length xs) (next (LIdent "_"))
                     let newVarsTypes = reverse $ take (length newVars) (reverse ts)
                     zipWithM_ introduce (xs ++ newVars) ts
-                    return (xs ++ newVars, app rt body $ zipWith EVar newVarsTypes newVars)
+                    return (xs ++ newVars, app rt body [] $ zipWith EVar newVarsTypes newVars)
                   else do
                     zipWithM_ introduce xs ts
                     return (xs, body)
     (e, ds) <- normaliseFunctionBody f body
     pop
     return $ DFun f t xs e : ds
-
 
   DThm t -> do
     (t', ds) <- normaliseTheorem t
@@ -97,9 +96,10 @@ normaliseFunctionBody f inputExpr = case inputExpr of
         nf       <- next f
         newVar   <- next (LIdent "_")
         ctx      <- free inputExpr
+        ftvs     <- ftv inputExpr
         let vt   = exprType ec
-        let t'   = foldr FunType t (map snd ctx ++ [vt])
-        (e', ds) <- normaliseExpr f (EApp t (EVar t' nf) (map (uncurry (flip EVar)) ctx ++ [ec]))
+        let t'   = foldr TypeAll (foldr FunType t (map snd ctx ++ [vt])) ftvs
+        (e', ds) <- normaliseExpr f (EApp t (EVar t' nf) (TypeVar <$> ftvs) (map (uncurry (flip EVar)) ctx ++ [ec]))
         ds'      <- normaliseDecl $
           DFun nf t' (map fst ctx ++ [newVar]) (ECase t (EVar vt newVar) as)
         return (e', ds ++ ds')
@@ -117,24 +117,29 @@ normaliseExpr f inputExpr = case inputExpr of
       nf       <- next f
       newVar   <- next (LIdent "_")
       ctx      <- free inputExpr
+      ftvs     <- ftv inputExpr
       let t'   = foldr FunType t (map snd ctx)
       ds       <- normaliseDecl $
         DFun nf t' (map fst ctx) inputExpr
-      return (app t (EVar t' nf) (map (uncurry (flip EVar)) ctx), ds)
+      return (app t (EVar t' nf) (TypeVar <$> ftvs) (map (uncurry (flip EVar)) ctx), ds)
 
-    ELam t x e -> do
+    ELam t tvs xs e -> do
       nf   <- next f
       ctx  <- free inputExpr
-      let t'  = foldr FunType t (map snd ctx)
+      ftvs <- ftv inputExpr
+      let t'  = foldr TypeAll (foldr FunType t (map snd ctx)) ftvs
       ds   <- normaliseDecl $
-        DFun nf t' (map fst ctx ++ [x]) e
-      return (app t (EVar t' nf) (map (uncurry (flip EVar)) ctx), ds)
+        DFun nf t' (map fst ctx ++ xs) e
+      return (app t (EVar t' nf) (TypeVar <$> ftvs) (map (uncurry (flip EVar)) ctx), ds)
 
     EAll t xs t' e -> (\(e', ds) -> (EAll t xs t' e', ds)) <$> normaliseExpr f e
 
     EEx t xs t' e  -> (\(e', ds) -> (EEx t xs t' e', ds)) <$> normaliseExpr f e
 
     _ -> return (inputExpr, [])
+
+ftv :: Expr -> NM [LIdent]
+ftv = error "ftv not yet defined"
 
 free :: Expr -> NM [(LIdent, Type)]
 free e = case e of
@@ -148,7 +153,7 @@ free e = case e of
 
   ECase t ec as -> union <$> free ec <*> (foldr union [] <$> sequence [ (\\ vars p) <$> free e | A p e <- as ])
 
-  ELam t v e -> filter ((/= v) . fst) <$> free e
+  ELam t tvs vs e -> filter ((`notElem` vs) . fst) <$> free e
 
   EAll _ xs _ e -> filter (flip notElem xs . fst) <$> free e
 
