@@ -68,7 +68,7 @@ instance TypeCheckable Decl where
   type Checked Decl = T.Decl
   typeCheck Nothing d = case d of
     DData n cs -> do
-      sequence_ [ introduceC c (foldr FunType (MonoType n) ts) | C c ts <- cs ]
+      sequence_ [ introduceC c (foldr FunType (TypeApp n []) ts) | C c ts <- cs ]
       return $ T.DData n cs
 
     DFun f t f' xs e -> do
@@ -95,7 +95,7 @@ true :: T.Expr
 true = T.ECon bool (UIdent "True")
 
 bool :: Type
-bool = MonoType (UIdent "Bool")
+bool = TypeApp (UIdent "Bool") []
 
 -- Binds variables in the current context
 instance TypeCheckable Pat where
@@ -110,13 +110,13 @@ instance TypeCheckable Pat where
       unless (rt == t)
         (fail $ "Type error, expected type " ++ printTree t ++ " got " ++ printTree c ++ " : " ++ printTree rt)
       unless (null argst) (fail "Expected more arguments to constructor")
-      return $ T.PCon c []
+      return $ T.PCon c []{-FIXME-} []
 
     PCon c ps -> do
       (rt, argst) <- T.split <$> lookup constructorTypes c
       unless (rt == t) (typeError 9)
       unless (length ps == length argst) (typeError 10)
-      T.PCon c <$> zipWithM typeCheck (map Just argst) ps 
+      T.PCon c []{-FIXME-} <$> zipWithM typeCheck (map Just argst) ps 
 
 {- FIXME
  - * Implementaiton of polymorphic inference for function
@@ -149,7 +149,7 @@ instance TypeCheckable Expr where
       at' <- mapM (typeCheck Nothing) es
       unless (and (zipWith (==) (map fst at') argst)) (typeError 13)
       let t' = foldr FunType rt (drop (length es) argst)
-      return $ (t', T.EApp t' f' (map snd at'))
+      return $ (t', T.EApp t' f' []{-FIXME-} (map snd at'))
 
     EEqual l r  -> do
       (tl, l) <- typeCheck Nothing l
@@ -202,7 +202,7 @@ instance TypeCheckable Expr where
       introduce x t
       (et, e') <- typeCheck Nothing e
       pop
-      return (FunType t et, T.ELam (FunType t et) x e')
+      return (FunType t et, T.ELam (FunType t et) []{-FIXME-} [x] e')
 
 overlapsCheck :: [Pat] -> Bool
 overlapsCheck ps = all (\p -> [()] == [ () | Just _ <- match (toTerm p) . toTerm <$> ps]) ps
