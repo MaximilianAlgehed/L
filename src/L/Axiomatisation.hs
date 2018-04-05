@@ -167,7 +167,9 @@ typeTag = tt . (build . go)
     go t@(TypeApp n ts)     = app (fun $ Function (T n (length ts) hideTypeTags)) (map go ts)
     go (FunctionType t0 t1) = app (fun $ Function (FT hideTypeTags)) [ go t0 , go t1 ]
 
-typeToTerm :: Type -> Term F
+{- FIXME: This needs to be in a context where free variables can be
+ - looked up in the context -}
+typeToTerm :: HasCallStack => Type -> Term F
 typeToTerm = undefined
 
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
