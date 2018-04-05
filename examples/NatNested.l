@@ -2,7 +2,7 @@
 data Nat = Z | S Nat;
 data Bool = True | False;
 
-ge : Nat -> Nat -> Bool
+ge : Nat -> Nat -> Bool;
 ge x y = case y of
     Z   -> True
   | S y -> (case x of

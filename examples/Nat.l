@@ -8,7 +8,6 @@ add n m = case n of
 lemma add-Z
   forall n : Nat. add n Z = n;
 
-{-
 lemma add-S
   forall n m : Nat. add n (S m) = S (add n m);
 
@@ -20,7 +19,7 @@ using
 lemma add-move-S
   forall n m : Nat. add (S n) m = add n (S m);
 
-commutative : (Nat -> Nat -> Nat) -> Formula
+commutative : (Nat -> Nat -> Nat) -> Formula;
 commutative f = forall n m : Nat. f n m = f m n;
 
 theorem add-comm
@@ -32,7 +31,7 @@ theorem add-assoc
   forall a b c : Nat.
     add a (add b c) = add (add a b) c;
 
-addFast : Nat -> Nat -> Nat
+addFast : Nat -> Nat -> Nat;
 addFast n m = case n of
     Z   -> m
   | S n -> addFast n (S m);
@@ -42,7 +41,7 @@ theorem add-addFast
 using
   add-move-S;
 
-double : Nat -> Nat
+double : Nat -> Nat;
 double n = case n of
     Z   -> Z
   | S n -> S (S (double n));
@@ -51,4 +50,3 @@ theorem double-add
   forall n : Nat. double n = add n n
 using
   add-S-S;
--}

@@ -2,7 +2,7 @@
 data NatTree = Leaf
              | Fork Nat NatTree NatTree;
 
-mirror : NatTree -> NatTree
+mirror : NatTree -> NatTree;
 mirror t = case t of
     Leaf       -> Leaf
   | Fork n l r -> Fork n (mirror r) (mirror l);
@@ -13,7 +13,7 @@ theorem mirror-mirror
 {- Nat theory -}
 data Nat = Z | S Nat;
 
-add : Nat -> Nat -> Nat
+add : Nat -> Nat -> Nat;
 add n m = case n of
     Z   -> m
   | S n -> S (add n m);
@@ -37,7 +37,7 @@ theorem add-assoc
     add a (add b c) = add (add a b) c;
 
 {- Mixing Tree and Nat theory -}
-treeSum : NatTree -> Nat
+treeSum : NatTree -> Nat;
 treeSum t = case t of
     Leaf       -> Z
   | Fork n l r -> add n (add (treeSum l) (treeSum r));
@@ -50,7 +50,7 @@ using
 {- A little bit of List theory -}
 data NatList = Nil | Cons Nat NatList;
 
-append : NatList -> NatList -> NatList
+append : NatList -> NatList -> NatList;
 append xs ys = case xs of
     Nil       -> ys
   | Cons x xs -> Cons x (append xs ys);
@@ -64,7 +64,7 @@ theorem append-assoc
     append xs (append ys zs) = append (append xs ys) zs;
 
 {- Mising Nat and List theory -}
-listSum : NatList -> Nat
+listSum : NatList -> Nat;
 listSum xs = case xs of
     Nil -> Z
   | Cons n xs -> add n (listSum xs);
@@ -82,7 +82,7 @@ using
   append-sum add-comm;
 
 {- Mixing Tree and List theory -}
-flatten : NatTree -> NatList
+flatten : NatTree -> NatList;
 flatten t = case t of
     Leaf       -> Nil
   | Fork n l r -> append (flatten l) (append (Cons n Nil) (flatten r));

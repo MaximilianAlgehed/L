@@ -1,11 +1,11 @@
 data Nat = Z | S Nat;
 
-add : Nat -> Nat -> Nat
+add : Nat -> Nat -> Nat;
 add n m = case n of
     Z   -> m
   | S n -> S (add n m);
 
-double : Nat -> Nat
+double : Nat -> Nat;
 double n = case n of
     Z   -> Z
   | S n -> S (S (double n));
@@ -33,12 +33,12 @@ lemma add-Z
 
 data NatList = Nil | Cons Nat NatList;
 
-map : (Nat -> Nat) -> NatList -> NatList
+map : (Nat -> Nat) -> NatList -> NatList;
 map f xs = case xs of
     Nil       -> Nil
   | Cons x xs -> Cons (f x) (map f xs);
 
-append : NatList -> NatList -> NatList
+append : NatList -> NatList -> NatList;
 append xs ys = case xs of
     Nil       -> ys
   | Cons x xs -> Cons x (append xs ys);
@@ -51,7 +51,7 @@ theorem append-assoc
   forall xs ys zs : NatList.
     append xs (append ys zs) = append (append xs ys) zs;
 
-reverse : NatList -> NatList
+reverse : NatList -> NatList;
 reverse xs = case xs of
     Nil       -> Nil
   | Cons x xs -> append (reverse xs) (Cons x Nil);
@@ -68,7 +68,7 @@ theorem reverse-reverse
 using
   reverse-append;
 
-quickReverse : NatList -> NatList -> NatList
+quickReverse : NatList -> NatList -> NatList;
 quickReverse xs ys = case xs of
     Nil       -> ys
   | Cons x xs -> quickReverse xs (Cons x ys);
@@ -85,7 +85,7 @@ theorem reverse-quickReverse
 using
   reverse-quickReverse-strong;
 
-length : NatList -> Nat
+length : NatList -> Nat;
 length xs = case xs of
     Nil -> Z
   | Cons x xs -> S (length xs);
@@ -114,7 +114,7 @@ using
 theorem length-ex
   forall n : Nat. exists xs : NatList. length xs = n;
 
-drop : Nat -> NatList -> NatList
+drop : Nat -> NatList -> NatList;
 drop n xs = case n of
     Z   -> xs
   | S n ->

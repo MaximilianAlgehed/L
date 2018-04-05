@@ -1,7 +1,7 @@
 
 data Bool = True | False;
 
-and : Bool -> Bool -> Bool
+and : Bool -> Bool -> Bool;
 and a b = case a of
     True  -> b
   | False -> False;

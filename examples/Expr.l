@@ -1,7 +1,7 @@
 {- Standard Nat theory -}
 data Nat = Z | S Nat;
 
-add : Nat -> Nat -> Nat
+add : Nat -> Nat -> Nat;
 add n m = case n of
     Z   -> m
   | S n -> S (add n m);
@@ -20,7 +20,7 @@ using
 {- Expression trees for natural numbers -}
 data Expr = Num Nat | Add Expr Expr | AddOne Expr;
 
-eval : Expr -> Nat
+eval : Expr -> Nat;
 eval e = case e of
     Num n    -> n
   | Add l r  -> add (eval l) (eval r)
@@ -36,22 +36,22 @@ data Stack = Empty
 
 data State = State Prog Stack;
 
-run : State -> State
+run : State -> State;
 run st = case st of
     State HALT s                      -> State HALT s
   | State (LOAD n p) s                -> run (State p (Push n s))
   | State (ADD p) (Push m (Push n s)) -> run (State p (Push (add n m) s));
 
-compileCont : Expr -> Prog -> Prog
+compileCont : Expr -> Prog -> Prog;
 compileCont e cont = case e of
     Num n    -> LOAD n cont
   | Add l r  -> compileCont l (compileCont r (ADD cont))
   | AddOne e -> compileCont e (LOAD (S Z) (ADD cont));
 
-compile : Expr -> Prog 
+compile : Expr -> Prog;
 compile e = compileCont e HALT;
 
-runExpr : Expr -> State
+runExpr : Expr -> State;
 runExpr e = run (State (compile e) Empty);
 
 lemma compiler-strong
