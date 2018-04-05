@@ -1,15 +1,18 @@
 
 module L.TAbs where
 
-import L.Abs (Type(..), LIdent, UIdent, Constructor)
+import L.Abs (Type(..), LIdent, UIdent)
 
 data Program = P [Decl]
   deriving (Eq, Ord, Show, Read)
 
 data Decl
-    = DData UIdent [Constructor]
+    = DData UIdent [LIdent] [Constructor]
     | DFun LIdent Type [LIdent] Expr
     | DThm Thm
+  deriving (Eq, Ord, Show, Read)
+
+data Constructor = C UIdent [Type]
   deriving (Eq, Ord, Show, Read)
 
 data Thm
@@ -33,6 +36,7 @@ data Alt = A Pat Expr
 
 data Pat = PVar Type LIdent | PCon UIdent [Type] [Pat]
   deriving (Eq, Ord, Show, Read)
+
 
 split :: Type -> (Type, [Type])
 split (FunType a r) =

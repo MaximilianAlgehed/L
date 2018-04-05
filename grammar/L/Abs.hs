@@ -13,9 +13,12 @@ data Program = P [Decl]
   deriving (Eq, Ord, Show, Read)
 
 data Decl
-    = DData UIdent [LIdent] [Constructor]
+    = DData UIdent [TypeArg] [Constructor]
     | DFun LIdent Type LIdent [LIdent] Expr
     | DThm Thm
+  deriving (Eq, Ord, Show, Read)
+
+data TypeArg = TA LIdent
   deriving (Eq, Ord, Show, Read)
 
 data Thm

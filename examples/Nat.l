@@ -1,6 +1,6 @@
 data Nat = Z | S Nat;
 
-add : Nat -> Nat -> Nat
+add : Nat -> Nat -> Nat;
 add n m = case n of
     Z   -> m
   | S n -> S (add n m);
@@ -8,6 +8,7 @@ add n m = case n of
 lemma add-Z
   forall n : Nat. add n Z = n;
 
+{-
 lemma add-S
   forall n m : Nat. add n (S m) = S (add n m);
 
@@ -50,3 +51,4 @@ theorem double-add
   forall n : Nat. double n = add n n
 using
   add-S-S;
+-}

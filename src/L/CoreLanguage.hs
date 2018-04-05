@@ -7,7 +7,7 @@ import Data.Generics.Uniplate.Data
 import Data.List
 
 import qualified L.TAbs as A
-import qualified L.Abs as A (Type(..), LIdent(..), UIdent(..), Constructor(..))
+import qualified L.Abs as A (Type(..), LIdent(..), UIdent(..))
 
 -- Names
 newtype Name = Name { getName :: String } deriving (Data, Typeable, Ord, Eq)
@@ -33,7 +33,7 @@ instance Show Type where
   show (TypeApp n ts)       = show n ++ " " ++ intercalate " " (map show ts)
 
 -- All declarations
-data Decl = DataDecl    Name [Name] [(Name, [Type])]
+data Decl = DataDecl    Name [Name] {- Type variables -} [(Name, [Type])]
           | FunDecl     Name Type [Name] {- Type variables -} [Name] {- Expression variables -} Body
           | TheoremDecl Name Proposition [Name]
           deriving (Ord, Eq, Show)
@@ -92,6 +92,7 @@ splitCoreType tin = let (t, ts) = go [] tin in (t, ts, boundTV tin)
     boundTV t             = []
 
 transType :: A.Type -> Type
+transType (A.MonoType (A.UIdent t)) = TypeApp (Name t) []
 transType (A.TypeApp (A.UIdent t) ts) = TypeApp (Name t) (transType <$> ts)
 transType (A.FunType t0 t1) = FunctionType (transType t0) (transType t1)
 transType A.Formula = Formula
@@ -114,8 +115,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
   where
     decl :: A.Decl -> [Decl]
     decl d = case d of
-      -- FIXME: Make sure to give the right type variables here
-      A.DData (A.UIdent n) cs -> [DataDecl (Name n) [] (map constructor cs)]
+      A.DData (A.UIdent n) tvs cs -> [DataDecl (Name n) [Name n | A.LIdent n <- tvs] (map constructor cs)]
 
       A.DFun (A.LIdent n) t xs b ->
         [ FunDecl (Name n) (transType t) [ Name n | A.LIdent n <- A.bound t ] [ Name n | A.LIdent n <- xs ] (body b)]
@@ -148,7 +148,7 @@ surfaceToCore (A.P ds) = concatMap decl ds
         Prop p       -> p
 
     constructor :: A.Constructor -> (Name, [Type])
-    constructor (A.C (A.UIdent n) ts) = (Name n, map transType ts)
+    constructor (A.C (A.UIdent n) ts) = (Name n, transType <$> ts)
 
     body :: A.Expr -> Body
     body b = case b of 

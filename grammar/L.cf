@@ -9,9 +9,13 @@ P. Program ::= [Decl];
 terminator nonempty Decl ";";
 
 -- All declarations
-DData. Decl ::= "data" UIdent [LIdent] "=" [Constructor];
+DData. Decl ::= "data" UIdent [TypeArg] "=" [Constructor];
 DFun.  Decl ::= LIdent ":" Type ";" LIdent [LIdent] "=" Expr;
 DThm.  Decl ::= Thm;
+
+TA. TypeArg ::= LIdent;
+
+separator TypeArg "";
 
 TStandalone. Thm ::= "theorem" LIdent Expr;
 TUsing.      Thm ::= "theorem" LIdent Expr "using" [LIdent];

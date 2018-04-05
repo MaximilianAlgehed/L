@@ -20,9 +20,12 @@ transProgram x = case x of
   P decls -> failure x
 transDecl :: Decl -> Result
 transDecl x = case x of
-  DData uident lidents constructors -> failure x
+  DData uident typeargs constructors -> failure x
   DFun lident1 type_ lident2 lidents expr -> failure x
   DThm thm -> failure x
+transTypeArg :: TypeArg -> Result
+transTypeArg x = case x of
+  TA lident -> failure x
 transThm :: Thm -> Result
 transThm x = case x of
   TStandalone lident expr -> failure x

@@ -95,11 +95,16 @@ instance Print Program where
 
 instance Print Decl where
   prt i e = case e of
-    DData uident lidents constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, prt 0 lidents, doc (showString "="), prt 0 constructors])
+    DData uident typeargs constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, prt 0 typeargs, doc (showString "="), prt 0 constructors])
     DFun lident1 type_ lident2 lidents expr -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, doc (showString ";"), prt 0 lident2, prt 0 lidents, doc (showString "="), prt 0 expr])
     DThm thm -> prPrec i 0 (concatD [prt 0 thm])
   prtList _ [x] = (concatD [prt 0 x, doc (showString ";")])
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ";"), prt 0 xs])
+instance Print TypeArg where
+  prt i e = case e of
+    TA lident -> prPrec i 0 (concatD [prt 0 lident])
+  prtList _ [] = (concatD [])
+  prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 instance Print Thm where
   prt i e = case e of
     TStandalone lident expr -> prPrec i 0 (concatD [doc (showString "theorem"), prt 0 lident, prt 0 expr])

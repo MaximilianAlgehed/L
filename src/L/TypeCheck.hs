@@ -67,9 +67,10 @@ instance TypeCheckable Program where
 instance TypeCheckable Decl where
   type Checked Decl = T.Decl
   typeCheck Nothing d = case d of
-    DData n cs -> do
-      sequence_ [ introduceC c (foldr FunType (TypeApp n []) ts) | C c ts <- cs ]
-      return $ T.DData n cs
+    DData n targs cs -> do
+      let typ = if null targs then MonoType n else TypeApp n [TypeVar t | TA t <- targs]
+      sequence_ [ introduceC c (foldr FunType typ [ t | Arg t <- ts ]) | C c ts <- cs ]
+      return $ T.DData n [ t | TA t <- targs] [ T.C cn [ t | Arg t <- ts ] | C cn ts <- cs ]
 
     DFun f t f' xs e -> do
       unless (f == f') (typeError 6)
@@ -95,7 +96,7 @@ true :: T.Expr
 true = T.ECon bool (UIdent "True")
 
 bool :: Type
-bool = TypeApp (UIdent "Bool") []
+bool = MonoType (UIdent "Bool")
 
 -- Binds variables in the current context
 instance TypeCheckable Pat where

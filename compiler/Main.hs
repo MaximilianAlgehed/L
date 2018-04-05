@@ -40,6 +40,7 @@ main = do
       Left e  -> error e
     Bad e -> error e
 
+
   ax <- case runAM $ axiomatise corePgm >> gets theory of
     Left err -> error err
     Right as -> return as
