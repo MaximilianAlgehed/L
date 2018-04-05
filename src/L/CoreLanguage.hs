@@ -23,7 +23,6 @@ data Type = FunctionType Type Type
           | Formula
           | TypeVar Name
           | TypeApp Name [Type]
-          | TypeAll Name Type
           deriving (Data, Typeable, Ord, Eq)
 
 instance Show Type where
@@ -78,18 +77,14 @@ data Expr = FApp Name [Type] [Expr]
           deriving (Ord, Eq, Show)
 
 {- Translate surface syntax to core syntax -}
-splitType :: A.Type -> (Type, [Type], [Name])
+splitType :: A.Type -> (Type, [Type])
 splitType = splitCoreType . transType 
 
-splitCoreType :: Type -> (Type, [Type], [Name])
-splitCoreType tin = let (t, ts) = go [] tin in (t, ts, boundTV tin)
+splitCoreType :: Type -> (Type, [Type])
+splitCoreType = go []
   where
-    go ts (TypeAll _ t)        = go ts t
     go ts (FunctionType t0 t1) = go (t0 : ts) t1
     go ts t                    = (t, reverse ts)
-
-    boundTV (TypeAll n t) = n : boundTV t
-    boundTV t             = []
 
 transType :: A.Type -> Type
 transType (A.MonoType (A.UIdent t)) = TypeApp (Name t) []
@@ -129,7 +124,6 @@ surfaceToCore (A.P ds) = concatMap decl ds
 
     proposition :: A.Expr -> Proposition
     proposition p = case p of
-
       A.EAll _ ns t p -> foldr (\(A.LIdent n) p -> Forall (Name n) (transType t) p)
                                (proposition p)
                                ns

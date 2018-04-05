@@ -59,8 +59,8 @@ runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.em
 addF :: Name -> Int -> AM ()
 addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n False) (nameMap s) }
 
-addT :: Name -> (Type, [Type], [Name]) -> AM ()
-addT n t = modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
+addT :: Name -> ((Type, [Type]), [Name]) -> AM ()
+addT n ((ty, ts), ns) = let t = (ty, ts, ns) in modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
 
 addDDef :: Name -> ([Name], [(Name, [Type])]) -> AM ()
 addDDef t d = modify $ \s -> s { definitions = M.insert t d (definitions s) }
@@ -93,7 +93,7 @@ getT :: HasCallStack => Name -> AM (Type, [Type], [Name])
 getT n = do
   vt <- gets variableTypes
   case M.lookup n vt of
-    Just t -> return (splitCoreType t)
+    Just t -> let (ty, ts) = splitCoreType t in return (ty, ts, ftv t)
     Nothing -> do
       nt <- gets nameTypes
       maybe (throwError "Unknown type error") return (M.lookup n nt)
@@ -277,17 +277,17 @@ axiomatise ps = do
                 addDDef t (targs, cs)
                 -- Constructors
                 sequence [ do addF n (length ts)
-                              addT n (TypeApp t (TypeVar <$> targs), ts, targs)
+                              addT n ((TypeApp t (TypeVar <$> targs), ts), targs)
                               unless (null ts) $ addCPtrAxiom n (TypeApp t (TypeVar <$> targs)) ts
                          | (n, ts) <- cs ]
             | DataDecl t targs cs <- ps ]
   -- Introduce all functions to the context
-  sequence_ [ addF n (length ts + length ns) >> addT n (splitCoreType t) >> addDef n (ts, ns, body)
+  sequence_ [ addF n (length ts + length ns) >> addT n (splitCoreType t, ts) >> addDef n (ts, ns, body)
             | FunDecl n t ts ns body <- ps ]
   -- Introduce all theorems to the context
   sequence_ [ addThm n p | TheoremDecl n p _ <- ps ]
   -- Compute axiomatisation from the functions
-  axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ t _ _ _) <- ps, (\(t, _, _) -> t) (splitCoreType t) /= Formula ]
+  axs <- concat <$> mapM functionToEquations [ f | f@(FunDecl _ t _ _ _) <- ps, fst (splitCoreType t) /= Formula ]
   -- Introduce the axiom for `IfEq`
   let eqAx = ("def. IfEq", build (app (fun (Function FIfEq)) (map var [ V 0, V 0, V 1, V 2 ])) :=: build (var (V 1)))
   let eqlAx = ("def. (==)", build (app (fun (Function F_equals)) (map var [V 0, V 0])) :=: true)
