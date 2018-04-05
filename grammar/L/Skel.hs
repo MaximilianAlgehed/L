@@ -20,7 +20,7 @@ transProgram x = case x of
   P decls -> failure x
 transDecl :: Decl -> Result
 transDecl x = case x of
-  DData uident constructors -> failure x
+  DData uident lidents constructors -> failure x
   DFun lident1 type_ lident2 lidents expr -> failure x
   DThm thm -> failure x
 transThm :: Thm -> Result
@@ -31,11 +31,15 @@ transThm x = case x of
   TLemmaUsing lident expr lidents -> failure x
 transConstructor :: Constructor -> Result
 transConstructor x = case x of
-  C uident types -> failure x
+  C uident cargs -> failure x
+transCArg :: CArg -> Result
+transCArg x = case x of
+  Arg type_ -> failure x
 transType :: Type -> Result
 transType x = case x of
   Formula -> failure x
   TypeVar lident -> failure x
+  MonoType uident -> failure x
   FunType type_1 type_2 -> failure x
   TypeApp uident types -> failure x
   TypeAll lident type_ -> failure x

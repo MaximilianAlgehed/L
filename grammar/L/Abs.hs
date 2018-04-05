@@ -13,7 +13,7 @@ data Program = P [Decl]
   deriving (Eq, Ord, Show, Read)
 
 data Decl
-    = DData UIdent [Constructor]
+    = DData UIdent [LIdent] [Constructor]
     | DFun LIdent Type LIdent [LIdent] Expr
     | DThm Thm
   deriving (Eq, Ord, Show, Read)
@@ -25,12 +25,16 @@ data Thm
     | TLemmaUsing LIdent Expr [LIdent]
   deriving (Eq, Ord, Show, Read)
 
-data Constructor = C UIdent [Type]
+data Constructor = C UIdent [CArg]
+  deriving (Eq, Ord, Show, Read)
+
+data CArg = Arg Type
   deriving (Eq, Ord, Show, Read)
 
 data Type
     = Formula
     | TypeVar LIdent
+    | MonoType UIdent
     | FunType Type Type
     | TypeApp UIdent [Type]
     | TypeAll LIdent Type

@@ -9,8 +9,8 @@ P. Program ::= [Decl];
 terminator nonempty Decl ";";
 
 -- All declarations
-DData. Decl ::= "data" UIdent "=" [Constructor];
-DFun.  Decl ::= LIdent ":" Type LIdent [LIdent] "=" Expr;
+DData. Decl ::= "data" UIdent [LIdent] "=" [Constructor];
+DFun.  Decl ::= LIdent ":" Type ";" LIdent [LIdent] "=" Expr;
 DThm.  Decl ::= Thm;
 
 TStandalone. Thm ::= "theorem" LIdent Expr;
@@ -23,18 +23,23 @@ separator Constructor "|";
 separator nonempty LIdent "";
 
 -- Constructors
-C. Constructor ::= UIdent [Type2];
+C. Constructor ::= UIdent [CArg];
 
-separator Type2 "";
+separator CArg "";
+
+Arg. CArg ::= Type1;
 
 -- Types
-Formula.  Type2 ::= "Formula";
-TypeVar.  Type2 ::= LIdent;
-FunType.  Type1 ::= Type2 "->" Type;
-TypeApp.  Type  ::= UIdent [Type2];
+Formula.  Type1 ::= "Formula";
+TypeVar.  Type1 ::= LIdent;
+MonoType. Type1 ::= UIdent;
+FunType.  Type  ::= Type1 "->" Type;
+TypeApp.  Type  ::= UIdent [Type1];
 TypeAll.  Type  ::= "forall" LIdent "." Type;
 
-coercions Type 2;
+separator nonempty Type1 "";
+
+coercions Type 1;
 
 -- Expressions
 EVar.   Expr2  ::= LIdent;

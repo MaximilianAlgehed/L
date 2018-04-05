@@ -95,8 +95,8 @@ instance Print Program where
 
 instance Print Decl where
   prt i e = case e of
-    DData uident constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, doc (showString "="), prt 0 constructors])
-    DFun lident1 type_ lident2 lidents expr -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, prt 0 lident2, prt 0 lidents, doc (showString "="), prt 0 expr])
+    DData uident lidents constructors -> prPrec i 0 (concatD [doc (showString "data"), prt 0 uident, prt 0 lidents, doc (showString "="), prt 0 constructors])
+    DFun lident1 type_ lident2 lidents expr -> prPrec i 0 (concatD [prt 0 lident1, doc (showString ":"), prt 0 type_, doc (showString ";"), prt 0 lident2, prt 0 lidents, doc (showString "="), prt 0 expr])
     DThm thm -> prPrec i 0 (concatD [prt 0 thm])
   prtList _ [x] = (concatD [prt 0 x, doc (showString ";")])
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ";"), prt 0 xs])
@@ -109,19 +109,25 @@ instance Print Thm where
 
 instance Print Constructor where
   prt i e = case e of
-    C uident types -> prPrec i 0 (concatD [prt 0 uident, prt 2 types])
+    C uident cargs -> prPrec i 0 (concatD [prt 0 uident, prt 0 cargs])
   prtList _ [] = (concatD [])
   prtList _ [x] = (concatD [prt 0 x])
   prtList _ (x:xs) = (concatD [prt 0 x, doc (showString "|"), prt 0 xs])
+instance Print CArg where
+  prt i e = case e of
+    Arg type_ -> prPrec i 0 (concatD [prt 1 type_])
+  prtList _ [] = (concatD [])
+  prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
 instance Print Type where
   prt i e = case e of
-    Formula -> prPrec i 2 (concatD [doc (showString "Formula")])
-    TypeVar lident -> prPrec i 2 (concatD [prt 0 lident])
-    FunType type_1 type_2 -> prPrec i 1 (concatD [prt 2 type_1, doc (showString "->"), prt 0 type_2])
-    TypeApp uident types -> prPrec i 0 (concatD [prt 0 uident, prt 2 types])
+    Formula -> prPrec i 1 (concatD [doc (showString "Formula")])
+    TypeVar lident -> prPrec i 1 (concatD [prt 0 lident])
+    MonoType uident -> prPrec i 1 (concatD [prt 0 uident])
+    FunType type_1 type_2 -> prPrec i 0 (concatD [prt 1 type_1, doc (showString "->"), prt 0 type_2])
+    TypeApp uident types -> prPrec i 0 (concatD [prt 0 uident, prt 1 types])
     TypeAll lident type_ -> prPrec i 0 (concatD [doc (showString "forall"), prt 0 lident, doc (showString "."), prt 0 type_])
-  prtList 2 [] = (concatD [])
-  prtList 2 (x:xs) = (concatD [prt 2 x, prt 2 xs])
+  prtList 1 [x] = (concatD [prt 1 x])
+  prtList 1 (x:xs) = (concatD [prt 1 x, prt 1 xs])
 instance Print Expr where
   prt i e = case e of
     EVar lident -> prPrec i 2 (concatD [prt 0 lident])
