@@ -106,7 +106,8 @@ getDef n = do
 introduceV :: Name -> Type -> AM ()
 introduceV n t = do
   id <- gets nextVarId 
-  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . var . V $ id) (variableMap s)
+  ttd <- typeTag t . build . var . V $ id
+  modify $ \s -> s { variableMap   = M.insert n ttd (variableMap s)
                    , variableTypes = M.insert n t (variableTypes s)
                    , nextVarId     = id + 1 } 
 
@@ -119,7 +120,8 @@ introduceTV n = do
 introduceSk :: Name -> Type -> AM ()
 introduceSk n t = do
   id <- gets nextVarId
-  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build . con . skolem . V $ id) (variableMap s)
+  ttd <- typeTag t . build . con . skolem . V $ id
+  modify $ \s -> s { variableMap   = M.insert n ttd (variableMap s)
                    , variableTypes = M.insert n t (variableTypes s)
                    , nextVarId     = id + 1 } 
 
@@ -127,7 +129,8 @@ introduceEx :: [Name] -> Name -> Type -> AM ()
 introduceEx xs n t = do
   id <- gets nextExId
   ts <- mapM getV xs
-  modify $ \s -> s { variableMap   = M.insert n (typeTag t . build $ app (fun (Function (Skf id (length xs)))) ts) (variableMap s)
+  ttd <- typeTag t . build $ app (fun (Function (Skf id (length xs)))) ts
+  modify $ \s -> s { variableMap   = M.insert n ttd (variableMap s)
                    , variableTypes = M.insert n t (variableTypes s)
                    , nextExId      = id + 1 } 
 
