@@ -26,11 +26,11 @@ import L.CoreLanguage
 import L.FunctionSymbols
 import qualified L.Eval as E
 
-apps :: (Term F, Type) -> [Term F] -> Term F
+apps :: HasCallStack => (Term F, Type) -> [Term F] -> Term F
 apps f ts = fst $ foldl (\(term, FunctionType _ typ) arg -> (typeTag typ $ build (app (fun (Function (Apply hideApply))) [term, arg]), typ))
                             f ts 
 
-apply :: Type -> F -> [Type] -> [Term F] -> Term F
+apply :: HasCallStack => Type -> F -> [Type] -> [Term F] -> Term F
 apply resT f types ts = case f of
   -- If it's a function pointer we need to sprinkle `$`s in the application
   Function (FPtr t typ) -> apps (build $ app (fun (Function $ TypeApply (length types + 1) hideApply)) (t:map typeToTerm types), typ) ts
@@ -51,15 +51,15 @@ data AState = S { nameMap       :: M.Map Name F
 
 type AM a = StateT AState (Either String) a
 
-runAM :: AM a -> Either String a
+runAM :: HasCallStack => AM a -> Either String a
 runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.empty M.empty 0 0 [])
 
 -- Introduce a new function symbol of a certain arity
 -- to the context
-addF :: Name -> Int -> AM ()
+addF :: HasCallStack => Name -> Int -> AM ()
 addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n False) (nameMap s) }
 
-addT :: Name -> ((Type, [Type]), [Name]) -> AM ()
+addT :: HasCallStack => Name -> ((Type, [Type]), [Name]) -> AM ()
 addT n ((ty, ts), ns) = let t = (ty, ts, ns) in modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
 
 addDDef :: Name -> ([Name], [(Name, [Type])]) -> AM ()
@@ -135,7 +135,7 @@ freshVar :: Type -> AM (Term F)
 freshVar t = do
   id <- gets nextVarId
   modify $ \s -> s { nextVarId = id + 1 }
-  return (typeTag t . build . var . V $ id)
+  typeTag t . build . var . V $ id
 
 mapVarTo :: Name -> Term F -> AM ()
 mapVarTo n t = modify $ \s -> s { variableMap = M.insert n t (variableMap s) }
@@ -149,28 +149,28 @@ getV n = do
   case M.lookup n vm of
     Nothing -> do
       (t, ts, _) <- getT n
-      return (typeTag (foldr FunctionType t ts) $ specific n)
+      typeTag (foldr FunctionType t ts) $ specific n
     Just v  -> return v
 
 freshSkolem :: Type -> AM (Term F)
 freshSkolem t = do
   idx <- gets nextExId 
   modify $ \s -> s { nextExId = idx + 1 }
-  return . typeTag t . build . con . fun . Function $ Skf idx 0
+  typeTag t . build . con . fun . Function $ Skf idx 0
 
 tt :: Term F -> Term F -> Term F
 tt typ te = build (app (fun (Function (TT hideTypeTags))) [typ, te])
 
-typeTag :: Type -> Term F -> Term F
-typeTag = tt . (build . go)
-  where
-    go t@(TypeApp n ts)     = app (fun $ Function (T n (length ts) hideTypeTags)) (map go ts)
-    go (FunctionType t0 t1) = app (fun $ Function (FT hideTypeTags)) [ go t0 , go t1 ]
+{- FIXME: This needs t obe in a context where free variables can be looked up
+ - `go` should be replcated by `typeToTerm` -}
+typeTag :: Type -> Term F -> AM (Term F)
+typeTag t te = do
+  tterm <- typeToTerm t
+  return $ tt tterm te
 
-{- FIXME: This needs to be in a context where free variables can be
- - looked up in the context -}
-typeToTerm :: HasCallStack => Type -> Term F
-typeToTerm = undefined
+{- FIXME: This needs to be in a context where free variables can be looked up -}
+typeToTerm :: HasCallStack => Type -> AM (Term F)
+typeToTerm = error "typeToTerm not yet implemented"
 
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of
@@ -179,7 +179,7 @@ exprToTerm e = case e of
     (tres_, targs_, ns) <- getT n
     let ss    = zip ns ts
     let tres  = substTypeList tres_ ss
-    let targs = map (flip substTypeList ss) targs
+    let targs = map (flip substTypeList ss) targs_
     let t = foldr FunctionType tres (drop (length es) targs)
     es <- mapM exprToTerm es
     if length es == length targs then
@@ -188,10 +188,13 @@ exprToTerm e = case e of
       let typ = foldr FunctionType tres targs in
       case f of
         Function (FPtr f typ) -> do
-          let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (f : map typeToTerm ts)
+          tterms <- mapM typeToTerm ts
+          let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (f : tterms)
           return $ apps (fptr, typ) es
         _ -> do
-          let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (typeTag typ (specific n) : map typeToTerm ts)
+          tterms <- mapM typeToTerm ts
+          ttd    <- typeTag typ (specific n)
+          let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (ttd : tterms)
           return $ apps (fptr, typ) es
 
   Var n -> getV n 
@@ -207,7 +210,7 @@ patternToTerm t p = case p of
     introduceV n t
     getV n
 
-functionToEquations :: Decl -> AM [(String, Equation F)]
+functionToEquations :: HasCallStack => Decl -> AM [(String, Equation F)]
 functionToEquations d = do
   -- Reset the variable context
   modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
@@ -235,8 +238,8 @@ functionToEquations d = do
                 sequence [ introduceV x t | (x, t) <- zip xs ts ]
                 f  <- getF f
                 xs' <- mapM getV xs
-                e   <- exprToTerm e
-                return [("def. " ++ fname, apply t f ts xs' :=: e)]
+                e'  <- exprToTerm e
+                return [("def. " ++ fname, apply t f ts xs' :=: e')]
 
       modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
       (t, ts, _) <- getT f
@@ -244,7 +247,8 @@ functionToEquations d = do
       f' <- getF f 
       xs_     <- mapM getV xs
       let typ = foldr FunctionType t ts
-      let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (typeTag typ (specific f) : map typeToTerm ts)
+      tts <- sequence $ typeTag typ (specific f) : map typeToTerm ts
+      let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) tts
       let eq = ("apply " ++ fname, apps (fptr, typ) xs_ :=: apply t f' ts xs_)
       return $ eq:es
 
@@ -266,7 +270,8 @@ addCPtrAxiom (Name n) t ts = do
   let typ = foldr FunctionType t ts
   xs <- mapM freshVar ts
   f' <- getF (Name n)
-  let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (typeTag typ (specific (Name n)) : map typeToTerm ts)
+  tts <- sequence $ typeTag typ (specific (Name n)) : map typeToTerm ts
+  let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) tts
   modify $ \s -> s { theory = ("apply " ++ n, apps (fptr, typ) xs :=: apply t f' ts xs) : theory s }
 
 axiomatise :: Program -> AM ()
@@ -307,7 +312,7 @@ data Problem = Problem { goal        :: Equation F
 
 type InductionSchema = Proposition -> AM [Problem]
 
-axioms :: Proposition -> AM [Equation F]
+axioms :: HasCallStack => Proposition -> AM [Equation F]
 axioms p = go [] p
   where
     go as p = case p of
@@ -335,7 +340,7 @@ axioms p = go [] p
         introduceTV n
         go as p
 
-hasExists :: Proposition -> Bool
+hasExists :: HasCallStack => Proposition -> Bool
 hasExists p = case p of
   Forall _ _ p   -> hasExists p
   Exists _ _ _   -> True
@@ -347,13 +352,13 @@ hasExists p = case p of
 
 substEq s (l :=: r) = build (T.subst s l) :=: build (T.subst s r)
 
-false, true :: Term F
+false, true :: HasCallStack => Term F
 false = (build . con . fun . Function $ F_false)
 true  = (build . con . fun . Function $ F_true)
 
 -- Generates an induction schema where the first variable in the proposition 
 -- to be proven is of type `t` with definition `def`
-structuralInduction :: InductionSchema
+structuralInduction :: HasCallStack => InductionSchema
 structuralInduction (Forall n t@(TypeApp tn typeArgs) prop) = do
   (argNames, def) <- getDef tn
   -- Introduce the fist type variable as just a variable
@@ -389,7 +394,7 @@ structuralInduction (Forall n t@(TypeApp tn typeArgs) prop) = do
     | (cn, tsIn) <- def ]
 
 -- Do structural induction on the first argument
-structInductOnFirst :: InductionSchema
+structInductOnFirst :: HasCallStack => InductionSchema
 structInductOnFirst prop = do
   prop <- normaliseProp prop
   case prop of
@@ -397,7 +402,7 @@ structInductOnFirst prop = do
 
     _ -> withoutInduction prop 
 
-withoutInduction :: InductionSchema
+withoutInduction :: HasCallStack => InductionSchema
 withoutInduction prop = do
   prop   <- normaliseProp prop
   fromGoal <- axioms (negatedNFP prop)
@@ -408,7 +413,7 @@ withoutInduction prop = do
                    , lemmas = [] } ]
 
 {- Function to test the induction schema generation -}
-attack :: InductionSchema -> Name -> Program -> Either String [Problem]
+attack :: HasCallStack => InductionSchema -> Name -> Program -> Either String [Problem]
 attack induct n prg = runAM $ do
   axiomatise prg
   case [ (p, extras) | TheoremDecl n' p extras <- prg, n == n' ] of
