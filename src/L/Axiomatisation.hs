@@ -26,15 +26,16 @@ import L.CoreLanguage
 import L.FunctionSymbols
 import qualified L.Eval as E
 
-apps :: HasCallStack => (Term F, Type) -> [Term F] -> Term F
-apps f ts = fst $ foldl (\(term, FunctionType _ typ) arg -> (typeTag typ $ build (app (fun (Function (Apply hideApply))) [term, arg]), typ))
-                            f ts 
+apps :: HasCallStack => (Term F, Type) -> [Term F] -> AM (Term F)
+apps f ts = fst <$> foldl (\(term, FunctionType _ typ) arg -> (typeTag typ <$> build (app (fun (Function (Apply hideApply))) [term, arg]), typ)) f ts 
 
-apply :: HasCallStack => Type -> F -> [Type] -> [Term F] -> Term F
+apply :: HasCallStack => Type -> F -> [Type] -> [Term F] -> AM (Term F)
 apply resT f types ts = case f of
   -- If it's a function pointer we need to sprinkle `$`s in the application
   Function (FPtr t typ) -> apps (build $ app (fun (Function $ TypeApply (length types + 1) hideApply)) (t:map typeToTerm types), typ) ts
-  _ -> typeTag resT (build (app (fun f) $ (typeToTerm <$> types) ++ ts))
+  _ -> do
+    tts <- mapM typeToTerm types 
+    typeTag resT <$> (build (app (fun f) $ tts ++ ts))
 
 data AState = S { nameMap       :: M.Map Name F
                 , nameTypes     :: M.Map Name (Type, [Type], [Name])
@@ -186,19 +187,19 @@ exprToTerm e = case e of
     let t = foldr FunctionType tres (drop (length es) targs)
     es <- mapM exprToTerm es
     if length es == length targs then
-      return $ apply tres f ts es
+      apply tres f ts es
     else
       let typ = foldr FunctionType tres targs in
       case f of
         Function (FPtr f typ) -> do
           tterms <- mapM typeToTerm ts
           let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (f : tterms)
-          return $ apps (fptr, typ) es
+          apps (fptr, typ) es
         _ -> do
           tterms <- mapM typeToTerm ts
           ttd    <- typeTag typ (specific n)
           let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (ttd : tterms)
-          return $ apps (fptr, typ) es
+          apps (fptr, typ) es
 
   Var n -> getV n 
 
@@ -207,7 +208,7 @@ patternToTerm t p = case p of
   ConstructorPattern n ts ps -> do
     f <- getF n
     (t, ts, _) <- getT n
-    apply t f ts <$> zipWithM patternToTerm ts ps
+    apply t f ts =<< zipWithM patternToTerm ts ps
 
   VariablePattern n -> do
     introduceV n t
@@ -233,7 +234,8 @@ functionToEquations d = do
                        -- Replace the occurance of `x` with `pat` in the list of arguments
                        let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
                        e       <- exprToTerm expr
-                       return $ ("def. " ++ fname, apply t f ts xs' :=: e)
+                       lhs <- apply t f ts xs'
+                       return $ ("def. " ++ fname, lhs :=: e)
                   | (pat, expr) <- ps ]
     
               E e       -> do
@@ -242,7 +244,8 @@ functionToEquations d = do
                 f  <- getF f
                 xs' <- mapM getV xs
                 e'  <- exprToTerm e
-                return [("def. " ++ fname, apply t f ts xs' :=: e')]
+                lhs <- apply t f ts xs'
+                return [("def. " ++ fname, lhs :=: e')]
 
       modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
       (t, ts, _) <- getT f
@@ -252,7 +255,9 @@ functionToEquations d = do
       let typ = foldr FunctionType t ts
       tts <- sequence $ typeTag typ (specific f) : map typeToTerm ts
       let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) tts
-      let eq = ("apply " ++ fname, apps (fptr, typ) xs_ :=: apply t f' ts xs_)
+      lhs <- apps (fptr, typ) xs_
+      rhs <- apply t f' ts xs_
+      let eq = ("apply " ++ fname, lhs :=: rhs)
       return $ eq:es
 
     _ -> throwError "Argument to functionToEquations is not a function declaration"
@@ -275,7 +280,9 @@ addCPtrAxiom (Name n) t ts = do
   f' <- getF (Name n)
   tts <- sequence $ typeTag typ (specific (Name n)) : map typeToTerm ts
   let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) tts
-  modify $ \s -> s { theory = ("apply " ++ n, apps (fptr, typ) xs :=: apply t f' ts xs) : theory s }
+  lhs <- apps (fptr, typ) xs
+  rhs <- apply t f' ts xs
+  modify $ \s -> s { theory = ("apply " ++ n, lhs :=: rhs) : theory s }
 
 axiomatise :: Program -> AM ()
 axiomatise ps = do
@@ -386,7 +393,7 @@ structuralInduction (Forall n t@(TypeApp tn typeArgs) prop) = do
         let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) ih | sk <- skolems ]
         -- Get the constructor term
         c <- getF cn
-        let term = apply t c ts vars
+        term <- apply t c ts vars
         return $ Problem { goal = true :=: false 
                          , hypotheses  = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih)
                                          | (ih, i) <- zip ihs [0..] ]
