@@ -13,7 +13,7 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = True
+hideTypeTags = False
 
 hideApply :: Bool
 hideApply = False
@@ -56,17 +56,18 @@ instance Arity FI where
   arity f           = arityF f
 
 instance Pretty FI where
-  pPrint F_true        = text "true"
-  pPrint F_false       = text "false"
-  pPrint F_equals      = text "=="
-  pPrint FIfEq         = text "ifEq"
-  pPrint (T n _ _)     = text (show n)
-  pPrint (FT _)        = text "->"
-  pPrint (TT _)        = text "tt"
-  pPrint (Apply _)     = text "$"
-  pPrint f@(SFPtr _ _) = text . ("*" ++) . show . nameF $ f
-  pPrint (Skf i _)     = text $ "skf" ++ show i
-  pPrint f             = text . ("'" ++) . show . nameF $ f
+  pPrint F_true          = text "true"
+  pPrint F_false         = text "false"
+  pPrint F_equals        = text "=="
+  pPrint FIfEq           = text "ifEq"
+  pPrint (T n _ _)       = text (show n)
+  pPrint (FT _)          = text "->"
+  pPrint (TT _)          = text "tt"
+  pPrint (Apply _)       = text "$"
+  pPrint (TypeApply _ _) = text "@"
+  pPrint f@(SFPtr _ _)   = text . ("*" ++) . show . nameF $ f
+  pPrint (Skf i _)       = text $ "skf" ++ show i
+  pPrint f               = text . ("'" ++) . show . nameF $ f
 
 instance EqualsBonus FI where
   hasEqualsBonus F_equals = True

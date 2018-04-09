@@ -276,11 +276,12 @@ functionToEquations d = do
       clearCtx
       (t, tas, _) <- getT f
       sequence [ introduceV x t | (x, t) <- zip xs tas ]
+      sequence [ introduceTV t  | t <- tvs ]
       f' <- getF f 
       xs_     <- mapM getV xs
       let typ = foldr FunctionType t tas
-      tts <- sequence $ typeTag typ (specific f) : map typeToTerm tas
-      let fptr = build $ app (fun (Function (TypeApply (length tas + 1) hideTypeTags))) tts
+      tts <- sequence $ typeTag typ (specific f) : map (typeToTerm . TypeVar) tvs
+      let fptr = build $ app (fun (Function (TypeApply (length tvs + 1) hideTypeTags))) tts
       lhs <- apps (fptr, typ) xs_
       rhs <- apply t f' (TypeVar <$> tvs) xs_
       let eq = ("apply " ++ fname, lhs :=: rhs)
@@ -298,16 +299,18 @@ assume n@(Name nm) = do
   else
     return [ (nm ++ show i, p) | (i, p) <- zip [0..] ps ]
 
-addCPtrAxiom :: Name -> Type -> [Type] -> AM ()
-addCPtrAxiom (Name n) t ts = do
+addCPtrAxiom :: Name -> Type -> [Name] -> [Type] -> AM ()
+addCPtrAxiom (Name n) t tvs ts = do
+  sequence [introduceTV t | t <- tvs]
+  let tvsts = TypeVar <$> tvs
   modify $ \s -> s { nextVarId = 0 }
   let typ = foldr FunctionType t ts
   xs <- mapM freshVar ts
   f' <- getF (Name n)
-  tts <- sequence $ typeTag typ (specific (Name n)) : map typeToTerm ts
-  let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) tts
+  tts <- sequence $ typeTag typ (specific (Name n)) : map typeToTerm tvsts
+  let fptr = build $ app (fun (Function (TypeApply (length tvs + 1) hideTypeTags))) tts
   lhs <- apps (fptr, typ) xs
-  rhs <- apply t f' ts xs
+  rhs <- apply t f' tvsts xs
   modify $ \s -> s { theory = ("apply " ++ n, lhs :=: rhs) : theory s }
 
 axiomatise :: Program -> AM ()
@@ -319,7 +322,7 @@ axiomatise ps = do
                 -- Constructors
                 sequence [ do addF n (length ts)
                               addT n ((TypeApp t (TypeVar <$> targs), ts), targs)
-                              unless (null ts) $ addCPtrAxiom n (TypeApp t (TypeVar <$> targs)) ts
+                              unless (null ts) $ addCPtrAxiom n (TypeApp t (TypeVar <$> targs)) targs ts
                          | (n, ts) <- cs ]
             | DataDecl t targs cs <- ps ]
   -- Introduce all functions to the context
