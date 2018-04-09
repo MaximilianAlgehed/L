@@ -61,7 +61,7 @@ instance Pretty FI where
   pPrint F_equals      = text "=="
   pPrint FIfEq         = text "ifEq"
   pPrint (T n _ _)     = text (show n)
-  pPrint (FT _)        = text "fun"
+  pPrint (FT _)        = text "->"
   pPrint (TT _)        = text "tt"
   pPrint (Apply _)     = text "$"
   pPrint f@(SFPtr _ _) = text . ("*" ++) . show . nameF $ f
@@ -90,6 +90,7 @@ instance PrettyTerm FI where
   termStyle F_false    = curried
   termStyle F_equals   = infixStyle 0
   termStyle (Skf _ _)  = curried
+  termStyle (FT _)     = infixStyle 0
   termStyle f          = if invis f then invisible else curried
 
 instance Ordered (Ext FI) where

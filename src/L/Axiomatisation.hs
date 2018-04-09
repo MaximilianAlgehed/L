@@ -27,15 +27,22 @@ import L.FunctionSymbols
 import qualified L.Eval as E
 
 apps :: HasCallStack => (Term F, Type) -> [Term F] -> AM (Term F)
-apps f ts = fst <$> foldl (\(term, FunctionType _ typ) arg -> (typeTag typ <$> build (app (fun (Function (Apply hideApply))) [term, arg]), typ)) f ts 
+apps f ts = go f (reverse ts)
+  where
+    go f [] = return $ fst f
+    go (term, FunctionType _ typ) (arg:ts) = do
+      r <- typeTag typ $ build (app (fun (Function (Apply hideApply))) [term, arg])
+      go (r, typ) ts
 
 apply :: HasCallStack => Type -> F -> [Type] -> [Term F] -> AM (Term F)
 apply resT f types ts = case f of
   -- If it's a function pointer we need to sprinkle `$`s in the application
-  Function (FPtr t typ) -> apps (build $ app (fun (Function $ TypeApply (length types + 1) hideApply)) (t:map typeToTerm types), typ) ts
+  Function (FPtr t typ) -> do
+    tts <- mapM typeToTerm types
+    apps (build $ app (fun (Function $ TypeApply (length types + 1) hideApply)) (t:tts), typ) ts
   _ -> do
     tts <- mapM typeToTerm types 
-    typeTag resT <$> (build (app (fun f) $ tts ++ ts))
+    typeTag resT (build (app (fun f) $ tts ++ ts))
 
 data AState = S { nameMap       :: M.Map Name F
                 , nameTypes     :: M.Map Name (Type, [Type], [Name])
@@ -156,6 +163,13 @@ getV n = do
       typeTag (foldr FunctionType t ts) $ specific n
     Just v  -> return v
 
+getTV :: Name -> AM (Term F)
+getTV n = do
+  tvm <- gets typeVarMap
+  case M.lookup n tvm of
+    Nothing -> throwError "Unkown type variable"
+    Just t  -> return t
+
 freshSkolem :: Type -> AM (Term F)
 freshSkolem t = do
   idx <- gets nextExId 
@@ -165,8 +179,6 @@ freshSkolem t = do
 tt :: Term F -> Term F -> Term F
 tt typ te = build (app (fun (Function (TT hideTypeTags))) [typ, te])
 
-{- FIXME: This needs t obe in a context where free variables can be looked up
- - `go` should be replcated by `typeToTerm` -}
 typeTag :: Type -> Term F -> AM (Term F)
 typeTag t te = do
   tterm <- typeToTerm t
@@ -174,7 +186,16 @@ typeTag t te = do
 
 {- FIXME: This needs to be in a context where free variables can be looked up -}
 typeToTerm :: HasCallStack => Type -> AM (Term F)
-typeToTerm = error "typeToTerm not yet implemented"
+typeToTerm t = case t of
+  FunctionType t0 t1 -> do
+    t0 <- typeToTerm t0
+    t1 <- typeToTerm t1
+    return . build $ app (fun (Function (FT hideTypeTags))) [t0, t1]
+  TypeVar n    -> getTV n
+  TypeApp n ts -> do
+    ts <- mapM typeToTerm ts
+    return . build $ app (fun (Function (T n (length ts) hideTypeTags))) ts
+  Formula -> throwError "Should never convert a formula to a term"
 
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of
@@ -214,49 +235,54 @@ patternToTerm t p = case p of
     introduceV n t
     getV n
 
+clearCtx :: AM ()
+clearCtx = modify $ \s -> s { variableMap = M.empty
+                            , typeVarMap  = M.empty
+                            , nextVarId   = 0 }
+
 functionToEquations :: HasCallStack => Decl -> AM [(String, Equation F)]
 functionToEquations d = do
   -- Reset the variable context
-  modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
+  clearCtx
   case d of
-    FunDecl f@(Name fname) t ts xs body -> do
+    FunDecl f@(Name fname) t tvs xs body -> do
       es <- case body of
               Case x ps -> sequence
-                  [ do modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
-                       (t, ts, _) <- getT f
-                       sequence [ introduceV x t | (x, t) <- zip xs ts ]
-                       f <- getF f 
+                  [ do clearCtx
+                       (t, tas, _) <- getT f
+                       sequence [ introduceV x t | (x, t) <- zip xs tas ]
+                       f       <- getF f 
                        xs_     <- mapM getV xs
-                       typ <- case [ t | (x', t) <- zip xs ts, x == x' ] of
+                       typ <- case [ t | (x', t) <- zip xs tas, x == x' ] of
                          []    -> throwError $ "Unknown variable error in case: " ++ show x
                          (t:_) -> return t
                        pat     <- patternToTerm typ pat
                        -- Replace the occurance of `x` with `pat` in the list of arguments
                        let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
                        e       <- exprToTerm expr
-                       lhs <- apply t f ts xs'
+                       lhs <- apply t f (TypeVar <$> tvs) xs'
                        return $ ("def. " ++ fname, lhs :=: e)
                   | (pat, expr) <- ps ]
     
               E e       -> do
-                (t, ts, _) <- getT f
-                sequence [ introduceV x t | (x, t) <- zip xs ts ]
+                (t, tas, _) <- getT f
+                sequence [ introduceV x t | (x, t) <- zip xs tas ]
                 f  <- getF f
                 xs' <- mapM getV xs
                 e'  <- exprToTerm e
-                lhs <- apply t f ts xs'
+                lhs <- apply t f (TypeVar <$> tvs) xs'
                 return [("def. " ++ fname, lhs :=: e')]
 
-      modify $ \s -> s { variableMap = M.empty, nextVarId = 0 }
-      (t, ts, _) <- getT f
-      sequence [ introduceV x t | (x, t) <- zip xs ts ]
+      clearCtx
+      (t, tas, _) <- getT f
+      sequence [ introduceV x t | (x, t) <- zip xs tas ]
       f' <- getF f 
       xs_     <- mapM getV xs
-      let typ = foldr FunctionType t ts
-      tts <- sequence $ typeTag typ (specific f) : map typeToTerm ts
-      let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) tts
+      let typ = foldr FunctionType t tas
+      tts <- sequence $ typeTag typ (specific f) : map typeToTerm tas
+      let fptr = build $ app (fun (Function (TypeApply (length tas + 1) hideTypeTags))) tts
       lhs <- apps (fptr, typ) xs_
-      rhs <- apply t f' ts xs_
+      rhs <- apply t f' (TypeVar <$> tvs) xs_
       let eq = ("apply " ++ fname, lhs :=: rhs)
       return $ eq:es
 
