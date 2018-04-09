@@ -20,11 +20,7 @@ hideApply = False
 
 type F = Ext FI
 
-data FI = F { arityF :: Int
-            , nameF  :: Name
-            , invis  :: Bool
-            }
-        | T { typ    :: Name
+data FI = T { typ    :: Name
             , arityF :: Int
             , invis  :: Bool }
         | FT { invis  :: Bool }

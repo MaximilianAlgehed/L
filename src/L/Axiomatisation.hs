@@ -37,13 +37,12 @@ apps f ts = go f (reverse ts)
 apply :: HasCallStack => (Type, [Type]) -> F -> [Type] -> [Term F] -> AM (Term F)
 apply (resT, argsT) f types ts = do
     let typ = foldr FunctionType resT argsT
-    t <- extractTerm typ f
+    t <- extractTerm f
     tts <- mapM typeToTerm types
     apps (build $ app (fun (Function $ TypeApply (length types + 1) hideApply)) (t:tts), typ) ts
 
-extractTerm :: Type -> F -> AM (Term F)
-extractTerm _ (Function (FPtr t _))  = return t
-extractTerm typ (Function (F _ n _)) = typeTag typ (specific n)
+extractTerm :: F -> AM (Term F)
+extractTerm (Function (FPtr t _)) = return t
 
 data AState = S { nameMap       :: M.Map Name F
                 , nameTypes     :: M.Map Name (Type, [Type], [Name])
@@ -63,10 +62,11 @@ type AM a = StateT AState (Either String) a
 runAM :: HasCallStack => AM a -> Either String a
 runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.empty M.empty 0 0 [])
 
--- Introduce a new function symbol of a certain arity
--- to the context
-addF :: HasCallStack => Name -> Int -> AM ()
-addF n i = modify $ \s -> s { nameMap = M.insert n (Function $ F i n False) (nameMap s) }
+-- Introduce a new function symbol
+addF :: HasCallStack => Name -> Type -> AM ()
+addF n t = do
+  fptr <- typeTag t (specific n)
+  modify $ \s -> s { nameMap = M.insert n (Function (FPtr fptr t)) (nameMap s) }
 
 addT :: HasCallStack => Name -> ((Type, [Type]), [Name]) -> AM ()
 addT n ((ty, ts), ns) = let t = (ty, ts, ns) in modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
@@ -196,7 +196,8 @@ typeToTerm t = case t of
   TypeApp n ts -> do
     ts <- mapM typeToTerm ts
     return . build $ app (fun (Function (T n (length ts) hideTypeTags))) ts
-  Formula -> throwError "Should never convert a formula to a term"
+  Formula -> do
+    return . build $ app (fun (Function (T (Name "Formula") 0 hideTypeTags))) ([] :: [Term F])
 
 exprToTerm :: HasCallStack => Expr -> AM (Term F)
 exprToTerm e = case e of
@@ -321,13 +322,13 @@ axiomatise ps = do
                 -- Definitions
                 addDDef t (targs, cs)
                 -- Constructors
-                sequence [ do addF n (length ts)
+                sequence [ do addF n (TypeApp t (TypeVar <$> targs))
                               addT n ((TypeApp t (TypeVar <$> targs), ts), targs)
                               unless (null ts) $ addCPtrAxiom n (TypeApp t (TypeVar <$> targs)) targs ts
                          | (n, ts) <- cs ]
             | DataDecl t targs cs <- ps ]
   -- Introduce all functions to the context
-  sequence_ [ addF n (length ts + length ns) >> addT n (splitCoreType t, ts) >> addDef n (ts, ns, body)
+  sequence_ [ addF n t >> addT n (splitCoreType t, ts) >> addDef n (ts, ns, body)
             | FunDecl n t ts ns body <- ps ]
   -- Introduce all theorems to the context
   sequence_ [ addThm n p | TheoremDecl n p _ <- ps ]
