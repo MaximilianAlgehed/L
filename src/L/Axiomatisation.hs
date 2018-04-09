@@ -2,8 +2,8 @@
 module L.Axiomatisation where
 
 {- FIXME:
- - * Make sure the arity of a function
- -   includes the type arguments
+ - * Burn everything to the ground and make sure
+ - to always use function pointers and ($) 
  -}
 
 import GHC.Stack
@@ -34,15 +34,16 @@ apps f ts = go f (reverse ts)
       r <- typeTag typ $ build (app (fun (Function (Apply hideApply))) [term, arg])
       go (r, typ) ts
 
-apply :: HasCallStack => Type -> F -> [Type] -> [Term F] -> AM (Term F)
-apply resT f types ts = case f of
-  -- If it's a function pointer we need to sprinkle `$`s in the application
-  Function (FPtr t typ) -> do
+apply :: HasCallStack => (Type, [Type]) -> F -> [Type] -> [Term F] -> AM (Term F)
+apply (resT, argsT) f types ts = do
+    let typ = foldr FunctionType resT argsT
+    t <- extractTerm typ f
     tts <- mapM typeToTerm types
     apps (build $ app (fun (Function $ TypeApply (length types + 1) hideApply)) (t:tts), typ) ts
-  _ -> do
-    tts <- mapM typeToTerm types 
-    typeTag resT (build (app (fun f) $ tts ++ ts))
+
+extractTerm :: Type -> F -> AM (Term F)
+extractTerm _ (Function (FPtr t _))  = return t
+extractTerm typ (Function (F _ n _)) = typeTag typ (specific n)
 
 data AState = S { nameMap       :: M.Map Name F
                 , nameTypes     :: M.Map Name (Type, [Type], [Name])
@@ -208,7 +209,7 @@ exprToTerm e = case e of
     let t = foldr FunctionType tres (drop (length es) targs)
     es <- mapM exprToTerm es
     if length es == length targs then
-      apply tres f ts es
+      apply (tres, targs) f ts es
     else
       let typ = foldr FunctionType tres targs in
       case f of
@@ -228,8 +229,8 @@ patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
 patternToTerm t p = case p of
   ConstructorPattern n ts ps -> do
     f <- getF n
-    (t, ts, _) <- getT n
-    apply t f ts =<< zipWithM patternToTerm ts ps
+    (t, ts', _) <- getT n
+    apply (t, ts') f ts =<< zipWithM patternToTerm ts' ps
 
   VariablePattern n -> do
     introduceV n t
@@ -260,7 +261,7 @@ functionToEquations d = do
                        -- Replace the occurance of `x` with `pat` in the list of arguments
                        let xs' = [ if x == x_i then pat else x_t | (x_i, x_t) <- zip xs xs_ ]
                        e       <- exprToTerm expr
-                       lhs <- apply t f (TypeVar <$> tvs) xs'
+                       lhs <- apply (t, tas) f (TypeVar <$> tvs) xs'
                        return $ ("def. " ++ fname, lhs :=: e)
                   | (pat, expr) <- ps ]
     
@@ -270,7 +271,7 @@ functionToEquations d = do
                 f  <- getF f
                 xs' <- mapM getV xs
                 e'  <- exprToTerm e
-                lhs <- apply t f (TypeVar <$> tvs) xs'
+                lhs <- apply (t, tas) f (TypeVar <$> tvs) xs'
                 return [("def. " ++ fname, lhs :=: e')]
 
       clearCtx
@@ -278,12 +279,12 @@ functionToEquations d = do
       sequence [ introduceV x t | (x, t) <- zip xs tas ]
       sequence [ introduceTV t  | t <- tvs ]
       f' <- getF f 
-      xs_     <- mapM getV xs
+      xs_ <- mapM getV xs
       let typ = foldr FunctionType t tas
       tts <- sequence $ typeTag typ (specific f) : map (typeToTerm . TypeVar) tvs
       let fptr = build $ app (fun (Function (TypeApply (length tvs + 1) hideTypeTags))) tts
       lhs <- apps (fptr, typ) xs_
-      rhs <- apply t f' (TypeVar <$> tvs) xs_
+      rhs <- apply (t, tas) f' (TypeVar <$> tvs) xs_
       let eq = ("apply " ++ fname, lhs :=: rhs)
       return $ eq:es
 
@@ -310,7 +311,7 @@ addCPtrAxiom (Name n) t tvs ts = do
   tts <- sequence $ typeTag typ (specific (Name n)) : map typeToTerm tvsts
   let fptr = build $ app (fun (Function (TypeApply (length tvs + 1) hideTypeTags))) tts
   lhs <- apps (fptr, typ) xs
-  rhs <- apply t f' tvsts xs
+  rhs <- apply (t, ts) f' tvsts xs
   modify $ \s -> s { theory = ("apply " ++ n, lhs :=: rhs) : theory s }
 
 axiomatise :: Program -> AM ()
@@ -422,7 +423,7 @@ structuralInduction (Forall n t@(TypeApp tn typeArgs) prop) = do
         let ihs = [ substEq (fromJust $ T.listToSubst [(V idx, sk)]) ih | sk <- skolems ]
         -- Get the constructor term
         c <- getF cn
-        term <- apply t c ts vars
+        term <- apply (t, ts) c typeArgs vars
         return $ Problem { goal = true :=: false 
                          , hypotheses  = [ ("I.H. " ++ show i, substEq (\(V id) -> if id == idx then con (skolem (V id)) else var (V id)) ih)
                                          | (ih, i) <- zip ihs [0..] ]
