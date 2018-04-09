@@ -26,8 +26,13 @@ import L.CoreLanguage
 import L.FunctionSymbols
 import qualified L.Eval as E
 
+{- SOMETHING IS BUGGY HERE
+ - Type applications (@) end up _outside_ the type-tag
+ - when they should either be inside or there should be
+ - another type tag on the outside.
+ -}
 apps :: HasCallStack => (Term F, Type) -> [Term F] -> AM (Term F)
-apps f ts = go f (reverse ts)
+apps f ts = go f ts
   where
     go f [] = return $ fst f
     go (term, FunctionType _ typ) (arg:ts) = do
@@ -39,7 +44,9 @@ apply (resT, argsT) f types ts = do
     let typ = foldr FunctionType resT argsT
     t <- extractTerm f
     tts <- mapM typeToTerm types
-    apps (build $ app (fun (Function $ TypeApply (length types + 1) hideApply)) (t:tts), typ) ts
+    let term = build $ app (fun (Function $ TypeApply (length tts + 1) hideApply)) (t:tts)
+    term <- typeTag typ term
+    apps (term, typ) ts
 
 extractTerm :: F -> AM (Term F)
 extractTerm (Function (FPtr t _)) = return t
@@ -216,12 +223,12 @@ exprToTerm e = case e of
       case f of
         Function (FPtr f typ) -> do
           tterms <- mapM typeToTerm ts
-          let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (f : tterms)
+          let fptr = build $ app (fun (Function (TypeApply (length tterms + 1) hideTypeTags))) (f : tterms)
           apps (fptr, typ) es
         _ -> do
           tterms <- mapM typeToTerm ts
           ttd    <- typeTag typ (specific n)
-          let fptr = build $ app (fun (Function (TypeApply (length ts + 1) hideTypeTags))) (ttd : tterms)
+          let fptr = build $ app (fun (Function (TypeApply (length tterms + 1) hideTypeTags))) (ttd : tterms)
           apps (fptr, typ) es
 
   Var n -> getV n 
@@ -248,7 +255,7 @@ functionToEquations d = do
   clearCtx
   case d of
     FunDecl f@(Name fname) t tvs xs body -> do
-      es <- case body of
+      case body of
               Case x ps -> sequence
                   [ do clearCtx
                        (t, tas, _) <- getT f
@@ -275,20 +282,6 @@ functionToEquations d = do
                 lhs <- apply (t, tas) f (TypeVar <$> tvs) xs'
                 return [("def. " ++ fname, lhs :=: e')]
 
-      clearCtx
-      (t, tas, _) <- getT f
-      sequence [ introduceV x t | (x, t) <- zip xs tas ]
-      sequence [ introduceTV t  | t <- tvs ]
-      f' <- getF f 
-      xs_ <- mapM getV xs
-      let typ = foldr FunctionType t tas
-      tts <- sequence $ typeTag typ (specific f) : map (typeToTerm . TypeVar) tvs
-      let fptr = build $ app (fun (Function (TypeApply (length tvs + 1) hideTypeTags))) tts
-      lhs <- apps (fptr, typ) xs_
-      rhs <- apply (t, tas) f' (TypeVar <$> tvs) xs_
-      let eq = ("apply " ++ fname, lhs :=: rhs)
-      return $ eq:es
-
     _ -> throwError "Argument to functionToEquations is not a function declaration"
 
 assume :: Name -> AM [(String, Equation F)]
@@ -301,20 +294,6 @@ assume n@(Name nm) = do
   else
     return [ (nm ++ show i, p) | (i, p) <- zip [0..] ps ]
 
-addCPtrAxiom :: Name -> Type -> [Name] -> [Type] -> AM ()
-addCPtrAxiom (Name n) t tvs ts = do
-  sequence [introduceTV t | t <- tvs]
-  let tvsts = TypeVar <$> tvs
-  modify $ \s -> s { nextVarId = 0 }
-  let typ = foldr FunctionType t ts
-  xs <- mapM freshVar ts
-  f' <- getF (Name n)
-  tts <- sequence $ typeTag typ (specific (Name n)) : map typeToTerm tvsts
-  let fptr = build $ app (fun (Function (TypeApply (length tvs + 1) hideTypeTags))) tts
-  lhs <- apps (fptr, typ) xs
-  rhs <- apply (t, ts) f' tvsts xs
-  modify $ \s -> s { theory = ("apply " ++ n, lhs :=: rhs) : theory s }
-
 axiomatise :: Program -> AM ()
 axiomatise ps = do
   -- Introduce all defintions and constructors to the context
@@ -324,7 +303,6 @@ axiomatise ps = do
                 -- Constructors
                 sequence [ do addF n (TypeApp t (TypeVar <$> targs))
                               addT n ((TypeApp t (TypeVar <$> targs), ts), targs)
-                              unless (null ts) $ addCPtrAxiom n (TypeApp t (TypeVar <$> targs)) targs ts
                          | (n, ts) <- cs ]
             | DataDecl t targs cs <- ps ]
   -- Introduce all functions to the context

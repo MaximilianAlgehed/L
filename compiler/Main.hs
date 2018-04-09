@@ -67,7 +67,7 @@ main = do
                               | ((axName, ax), i) <- zip (hypotheses p ++ lemmas p ++ background p) [0..] ]
                  let g = T.goal 0 (problemName ++ ", case " ++ show caseN) $ goal p 
                  let st = addGoal cfg (foldr (\a s -> addAxiom cfg s a) initialState axioms) g
-                 completedState <- normaliseGoals <$> complete (Output $ \_ -> return ()) cfg st
+                 completedState <- normaliseGoals <$> complete (Output {-prettyPrint -}$ \_ -> return ()) cfg st
                  if solved completedState then do
                    putStrLn "*** closed goal ***\n"
                    prettyPrint (Proof.present Proof.defaultConfig (solutions completedState))

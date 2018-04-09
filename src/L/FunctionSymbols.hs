@@ -13,10 +13,10 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = False
+hideTypeTags = True 
 
 hideApply :: Bool
-hideApply = False
+hideApply = True
 
 type F = Ext FI
 
