@@ -13,10 +13,10 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = True
+hideTypeTags = False
 
 hideApply :: Bool
-hideApply = True
+hideApply = False
 
 type F = Ext FI
 
@@ -28,7 +28,6 @@ data FI = T { typ    :: Name
         | SFPtr { invis :: Bool
                 , nameF :: Name }
         | FPtr (Term F) Type
-        | TypeApply { arityF :: Int, invis :: Bool }
         | Apply { invis :: Bool }
         | Skf { skIdx :: Int, artiyF :: Int }
         | FIfEq
@@ -60,7 +59,6 @@ instance Pretty FI where
   pPrint (FT _)          = text "->"
   pPrint (TT _)          = text "tt"
   pPrint (Apply _)       = text "$"
-  pPrint (TypeApply _ _) = text "@"
   pPrint f@(SFPtr _ _)   = text . ("*" ++) . show . nameF $ f
   pPrint (Skf i _)       = text $ "skf" ++ show i
   pPrint f               = text . ("'" ++) . show . nameF $ f

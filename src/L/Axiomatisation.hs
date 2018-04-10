@@ -43,9 +43,7 @@ apply :: HasCallStack => (Type, [Type]) -> F -> [Type] -> [Term F] -> AM (Term F
 apply (resT, argsT) f types ts = do
     let typ = foldr FunctionType resT argsT
     t <- extractTerm f
-    tts <- mapM typeToTerm types
-    let term = build $ app (fun (Function $ TypeApply (length tts + 1) hideApply)) (t:tts)
-    term <- typeTag typ term
+    term <- typeTag typ t
     apps (term, typ) ts
 
 extractTerm :: F -> AM (Term F)
@@ -221,16 +219,7 @@ exprToTerm e = case e of
     else
       let typ = foldr FunctionType tres targs in
       case f of
-        Function (FPtr f typ) -> do
-          tterms <- mapM typeToTerm ts
-          let fptr = build $ app (fun (Function (TypeApply (length tterms + 1) hideTypeTags))) (f : tterms)
-          apps (fptr, typ) es
-        _ -> do
-          tterms <- mapM typeToTerm ts
-          ttd    <- typeTag typ (specific n)
-          let fptr = build $ app (fun (Function (TypeApply (length tterms + 1) hideTypeTags))) (ttd : tterms)
-          apps (fptr, typ) es
-
+        Function (FPtr f typ) -> apps (f, typ) es
   Var n -> getV n 
 
 patternToTerm :: HasCallStack => Type -> Pattern -> AM (Term F)
