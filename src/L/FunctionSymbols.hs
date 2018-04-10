@@ -13,10 +13,10 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = False
+hideTypeTags = True 
 
 hideApply :: Bool
-hideApply = False
+hideApply = True
 
 type F = Ext FI
 
@@ -37,6 +37,10 @@ data FI = T { typ    :: Name
         deriving (Ord, Eq, Show)
 
 instance Sized FI where
+  size (T _ _ _) = 0
+  size (FT _)    = 0
+  size (TT _)    = 0
+  size (Apply _) = 0
   size _ = 1
 
 instance Arity FI where
