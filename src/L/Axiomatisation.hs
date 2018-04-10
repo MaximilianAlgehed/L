@@ -71,9 +71,7 @@ runAM am = evalStateT am (S M.empty M.empty M.empty M.empty M.empty M.empty M.em
 
 -- Introduce a new function symbol
 addF :: HasCallStack => Name -> Type -> AM ()
-addF n t = do
-  fptr <- typeTag t (specific n)
-  modify $ \s -> s { nameMap = M.insert n (Function (FPtr fptr t)) (nameMap s) }
+addF n t = modify $ \s -> s { nameMap = M.insert n (Function (FPtr (specific n) t)) (nameMap s) }
 
 addT :: HasCallStack => Name -> ((Type, [Type]), [Name]) -> AM ()
 addT n ((ty, ts), ns) = let t = (ty, ts, ns) in modify $ \s -> s { nameTypes = M.insert n t (nameTypes s) }
@@ -122,7 +120,9 @@ getDef n = do
 introduceV :: Name -> Type -> AM ()
 introduceV n t = do
   id <- gets nextVarId 
-  ttd <- typeTag t . build . var . V $ id
+  ttd <- case t of
+    FunctionType _ _ -> return . build . var . V $ id
+    _                -> typeTag t . build . var . V $ id
   modify $ \s -> s { variableMap   = M.insert n ttd (variableMap s)
                    , variableTypes = M.insert n t (variableTypes s)
                    , nextVarId     = id + 1 } 

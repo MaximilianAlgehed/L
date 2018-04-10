@@ -13,7 +13,7 @@ import qualified Twee.KBO
 import L.CoreLanguage
 
 hideTypeTags :: Bool
-hideTypeTags = True 
+hideTypeTags = True
 
 hideApply :: Bool
 hideApply = True
