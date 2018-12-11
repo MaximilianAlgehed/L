@@ -62,7 +62,10 @@ class TypeCheckable a where
 
 instance TypeCheckable Program where
   type Checked Program = T.Program
-  typeCheck Nothing (P ds) = T.P <$> (push >> sequence [ introduce f t | DFun f t _ _ _ <- ds] >> mapM (typeCheck Nothing) ds)
+  typeCheck Nothing (P ds) = T.P <$> do
+    push
+    sequence [ introduce f t | DFun f t _ _ _ <- ds]
+    mapM (typeCheck Nothing) ds
 
 instance TypeCheckable Decl where
   type Checked Decl = T.Decl
@@ -206,21 +209,24 @@ instance TypeCheckable Expr where
       return (FunType t et, T.ELam (FunType t et) []{-FIXME-} [x] e')
 
 overlapsCheck :: [Pat] -> Bool
-overlapsCheck ps = all (\p -> [()] == [ () | Just _ <- match (toTerm p) . toTerm <$> ps]) ps
+overlapsCheck ps = all (\p -> length [ () | Just _ <- match (toTerm p) . toTerm <$> ps] == 1) ps
 
-toTerm :: Pat -> Term String
-toTerm p = evalState (go p) (M.empty, 0)
-  where
-    go :: Pat -> State (M.Map LIdent (Term String), Int) (Term String)
-    go p = case p of
-      PVar id -> do
-        (m, idx) <- get
-        case M.lookup id m of
-          Nothing -> do
-            let t = build . var . V $ idx
-            put (M.insert id t m, idx + 1)
-            return t
-          Just t -> return t
-      PConE (UIdent c) -> do
-        return $ build (con (fun c))
-      PCon (UIdent c) ps -> build . app (fun c) <$> mapM go ps
+class ToTerm a where
+  toTerm :: a -> Term String
+
+instance ToTerm Pat where
+  toTerm p = evalState (go p) (M.empty, 0)
+    where
+      go :: Pat -> State (M.Map LIdent (Term String), Int) (Term String)
+      go p = case p of
+        PVar id -> do
+          (m, idx) <- get
+          case M.lookup id m of
+            Nothing -> do
+              let t = build . var . V $ idx
+              put (M.insert id t m, idx + 1)
+              return t
+            Just t -> return t
+        PConE (UIdent c) -> do
+          return $ build (con (fun c))
+        PCon (UIdent c) ps -> build . app (fun c) <$> mapM go ps

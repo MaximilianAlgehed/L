@@ -93,7 +93,7 @@ transType (A.FunType t0 t1) = FunctionType (transType t0) (transType t1)
 transType A.Formula = Formula
 
 ftv :: Type -> [Name]
-ftv = error "ftv not yet implemented"
+ftv t = [ n | TypeVar n <- universe t] 
 
 substType :: Type -> (Name, Type) -> Type
 substType t (x, t') = transform go t

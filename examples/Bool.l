@@ -13,6 +13,6 @@ lemma and-true
   forall a : Bool. and a True = a;
 
 lemma and-implies
-  forall a b : Bool. and a b = True => a
+  forall a b : Bool. and a b = True => a = True
 using
   and-false and-true;
